@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>检查本地存储数据</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; margin-bottom: 20px; }
+        .data-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .user-data {
+            background: #e3f2fd;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #2196f3;
+        }
+        pre {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            overflow: auto;
+            font-size: 12px;
+        }
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #1976d2; }
+        .warning { background: #fff3cd; padding: 15px; border-radius: 8px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 FocusBoard 数据检查工具</h1>
+        
+        <div class="warning">
+            <strong>说明：</strong>这个页面可以帮助您查看本地存储中保存的用户数据
+        </div>
+
+        <div style="margin: 20px 0;">
+            <button onclick="checkAllData()">刷新所有数据</button>
+            <button onclick="localStorage.clear(); alert('已清空所有数据！'); checkAllData();">清空所有数据</button>
+        </div>
+
+        <div id="output"></div>
+    </div>
+
+    <script>
+        function checkAllData() {
+            const output = document.getElementById('output');
+            const keys = Object.keys(localStorage);
+            
+            if (keys.length === 0) {
+                output.innerHTML = '<div class="data-section"><p>📭 localStorage 中没有任何数据</p></div>';
+                return;
+            }
+
+            let html = '';
+            
+            // 按用户分组
+            const userData = {};
+            
+            keys.forEach(key => {
+                const match = key.match(/^(todos|calendar|theme|share)_(.+)$/);
+                if (match) {
+                    const dataType = match[1];
+                    const userId = match[2];
+                    if (!userData[userId]) userData[userId] = {};
+                    userData[userId][dataType] = JSON.parse(localStorage.getItem(key));
+                } else if (key === 'auth') {
+                    html += `<div class="data-section">
+                        <h3>🔑 当前登录用户</h3>
+                        <pre>${JSON.stringify(JSON.parse(localStorage.getItem(key)), null, 2)}</pre>
+                    </div>`;
+                }
+            });
+
+            // 显示按用户分组的数据
+            Object.keys(userData).forEach(userId => {
+                html += `<div class="user-data">
+                    <h3>👤 用户 ID: ${userId}</h3>`;
+                
+                if (userData[userId].todos) {
+                    const todoCount = Object.values(userData[userId].todos).reduce((sum, arr) => sum + (arr?.length || 0), 0);
+                    html += `<p><strong>任务：</strong> ${todoCount} 个任务</p>`;
+                    html += `<pre>${JSON.stringify(userData[userId].todos, null, 2)}</pre>`;
+                }
+                
+                if (userData[userId].calendar) {
+                    html += `<p><strong>事件：</strong> ${userData[userId].calendar.events?.length || 0} 个事件</p>`;
+                    html += `<pre>${JSON.stringify(userData[userId].calendar, null, 2)}</pre>`;
+                }
+                
+                html += `</div>`;
+            });
+
+            output.innerHTML = html;
+        }
+
+        // 页面加载时自动检查
+        checkAllData();
+    </script>
+</body>
+</html>
+

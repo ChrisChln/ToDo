@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+  
+  body {
+    @apply m-0 p-0 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .shadow-custom {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .rounded-custom {
+    border-radius: 16px;
+  }
+  
+  /* 主题色应用类 */
+  .bg-primary {
+    background-color: var(--primary-color, #A78BFA);
+  }
+  
+  .text-primary {
+    color: var(--primary-color, #A78BFA);
+  }
+  
+  .border-primary {
+    border-color: var(--primary-color, #A78BFA);
+  }
+
+  /* iOS 风格轻微抖动 */
+  @keyframes ios-wiggle {
+    0% { transform: rotate(-1deg); }
+    50% { transform: rotate(1deg); }
+    100% { transform: rotate(-1deg); }
+  }
+  .ios-wiggle {
+    animation: ios-wiggle 0.5s ease-in-out infinite;
+    transform-origin: center center;
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  /* 隐藏滚动条但保持滚动功能 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+}

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>诊断数据问题</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .diagnosis { margin: 20px 0; padding: 15px; border-radius: 8px; }
+        .info { background: #e3f2fd; }
+        .error { background: #ffebee; }
+        .success { background: #e8f5e9; }
+        button { background: #2196f3; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin: 5px; }
+        pre { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 6px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 FocusBoard 数据诊断工具</h1>
+    
+    <div class="diagnosis info">
+        <h3>步骤 1: 检查 localStorage</h3>
+        <button onclick="checkStorage()">检查所有存储的数据</button>
+        <pre id="storage-output"></pre>
+    </div>
+    
+    <div class="diagnosis info">
+        <h3>步骤 2: 查看当前用户</h3>
+        <button onclick="checkUser()">查看当前登录用户</button>
+        <pre id="user-output"></pre>
+    </div>
+    
+    <div class="diagnosis info">
+        <h3>步骤 3: 检查 thisWeek 数据</h3>
+        <button onclick="checkThisWeek()">检查 thisWeek 任务</button>
+        <pre id="thisweek-output"></pre>
+    </div>
+
+    <script>
+        function checkStorage() {
+            const output = document.getElementById('storage-output');
+            const keys = Object.keys(localStorage);
+            
+            let html = '📦 localStorage 中的所有数据:\n\n';
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                html += `${key}: ${value}\n`;
+            });
+            
+            output.textContent = html;
+        }
+        
+        function checkUser() {
+            const output = document.getElementById('user-output');
+            try {
+                const auth = JSON.parse(localStorage.getItem('auth'));
+                const userId = auth?.user?.sub;
+                
+                let html = `当前用户信息:\n`;
+                html += `用户 ID: ${userId || 'null'}\n`;
+                html += `用户名称: ${auth?.user?.name || 'null'}\n`;
+                html += `用户邮箱: ${auth?.user?.email || 'null'}\n`;
+                
+                if (userId) {
+                    html += `\n相关存储 key:\n`;
+                    html += `- todos_${userId}\n`;
+                    html += `- calendar_${userId}\n`;
+                }
+                
+                output.textContent = html;
+            } catch(e) {
+                output.textContent = '错误: ' + e.message;
+            }
+        }
+        
+        function checkThisWeek() {
+            const output = document.getElementById('thisweek-output');
+            try {
+                const auth = JSON.parse(localStorage.getItem('auth'));
+                const userId = auth?.user?.sub;
+                
+                if (!userId) {
+                    output.textContent = '❌ 没有登录用户';
+                    return;
+                }
+                
+                const todosKey = `todos_${userId}`;
+                const todos = JSON.parse(localStorage.getItem(todosKey) || 'null');
+                
+                let html = `用户 ID: ${userId}\n`;
+                html += `存储 key: ${todosKey}\n`;
+                html += `\ntodos 数据:\n${JSON.stringify(todos, null, 2)}\n`;
+                
+                if (todos && todos.thisWeek) {
+                    html += `\n✅ thisWeek 任务数量: ${todos.thisWeek.length}\n`;
+                    html += `任务列表: ${JSON.stringify(todos.thisWeek, null, 2)}`;
+                } else {
+                    html += `\n❌ 没有找到 thisWeek 数据`;
+                }
+                
+                output.textContent = html;
+            } catch(e) {
+                output.textContent = '错误: ' + e.message;
+            }
+        }
+        
+        // 页面加载时自动检查
+        window.onload = function() {
+            checkUser();
+            checkThisWeek();
+        };
+    </script>
+</body>
+</html>
+

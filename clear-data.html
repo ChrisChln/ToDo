@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>清空 FocusBoard 数据</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .warning-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .warning-text {
+            color: #856404;
+            font-weight: 600;
+        }
+
+        .storage-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .storage-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .storage-item:last-child {
+            border-bottom: none;
+        }
+
+        .storage-name {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .storage-count {
+            color: #764ba2;
+            font-weight: 600;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            color: #155724;
+            display: none;
+        }
+
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ 清空 FocusBoard 数据</h1>
+        
+        <div class="warning">
+            <div class="warning-icon">⚠️</div>
+            <div class="warning-text">
+                此操作将删除所有本地保存的数据，包括：
+                <ul style="margin-top: 10px; margin-left: 20px;">
+                    <li>所有任务列表</li>
+                    <li>所有日历事件</li>
+                    <li>用户登录信息</li>
+                    <li>主题设置</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="storage-info">
+            <div class="storage-item">
+                <span class="storage-name">任务数据:</span>
+                <span class="storage-count" id="todos-count">检查中...</span>
+            </div>
+            <div class="storage-item">
+                <span class="storage-name">日历事件:</span>
+                <span class="storage-count" id="events-count">检查中...</span>
+            </div>
+            <div class="storage-item">
+                <span class="storage-name">用户信息:</span>
+                <span class="storage-count" id="auth-count">检查中...</span>
+            </div>
+        </div>
+
+        <button class="btn btn-danger" onclick="clearAllData()">
+            🗑️ 清空所有数据
+        </button>
+
+        <button class="btn btn-secondary" onclick="goToApp()">
+            返回应用
+        </button>
+
+        <div class="success-message" id="success-message">
+            ✅ 数据已成功清空！正在跳转到应用...
+        </div>
+
+        <div class="footer">
+            <p>此操作只清空本地数据，不会影响云端同步。</p>
+        </div>
+    </div>
+
+    <script>
+        // 检查 localStorage 中的数据
+        function checkStorage() {
+            const todos = JSON.parse(localStorage.getItem('todos') || 'null');
+            const calendar = JSON.parse(localStorage.getItem('calendar') || 'null');
+            const auth = JSON.parse(localStorage.getItem('auth') || 'null');
+
+            const todosCount = todos ? Object.values(todos).reduce((sum, arr) => sum + (arr?.length || 0), 0) : 0;
+            const eventsCount = calendar?.events?.length || 0;
+            const authCount = auth?.user ? 1 : 0;
+
+            document.getElementById('todos-count').textContent = todosCount + ' 个任务';
+            document.getElementById('events-count').textContent = eventsCount + ' 个事件';
+            document.getElementById('auth-count').textContent = authCount > 0 ? '已登录' : '未登录';
+        }
+
+        function clearAllData() {
+            if (confirm('⚠️ 确定要删除所有数据吗？此操作无法撤销！')) {
+                // 清空所有 FocusBoard 相关的数据
+                localStorage.removeItem('todos');
+                localStorage.removeItem('calendar');
+                localStorage.removeItem('auth');
+                localStorage.removeItem('theme');
+                localStorage.removeItem('share');
+
+                // 显示成功消息
+                document.getElementById('success-message').style.display = 'block';
+
+                // 3 秒后跳转回应用
+                setTimeout(() => {
+                    window.location.href = 'http://localhost:5173';
+                }, 2000);
+            }
+        }
+
+        function goToApp() {
+            window.location.href = 'http://localhost:5173';
+        }
+
+        // 页面加载时检查数据
+        checkStorage();
+    </script>
+</body>
+</html>
+
