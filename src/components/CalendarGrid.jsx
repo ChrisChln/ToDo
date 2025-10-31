@@ -11,6 +11,7 @@ function CalendarGrid({
   onEventClick,
   onToggleComplete,
   onOpenLink,
+  onDeleteEvent,
   onEventDragStart,
   onEventDragOver,
   onEventDragLeave,
@@ -144,6 +145,7 @@ function CalendarGrid({
                   onEventClick={onEventClick}
                   onToggleComplete={onToggleComplete}
                   onOpenLink={onOpenLink}
+                  onDeleteEvent={onDeleteEvent}
                   onEventDragStart={onEventDragStart}
                   onEventDragOver={onEventDragOver}
                   onEventDragLeave={onEventDragLeave}

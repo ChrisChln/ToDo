@@ -7,6 +7,7 @@ function CalendarCell({
   onEventClick,
   onToggleComplete,
   onOpenLink,
+  onDeleteEvent,
   onEventDragStart,
   onEventDragOver,
   onEventDragLeave,
@@ -294,8 +295,8 @@ function CalendarCell({
                     onEventDragEnd()
                   }
                 }}
-                className={`flex items-center gap-2 rounded-lg px-2 py-2 text-xs shadow-sm transition-all ${
-                  isEditMode ? 'cursor-move' : ''
+                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs shadow-sm transition-all min-h-[32px] ${
+                  isEditMode ? 'cursor-move ios-wiggle' : ''
                 } ${isDragged ? 'opacity-50' : ''}`}
                 style={{ backgroundColor }}
                 onClick={(e) => {
@@ -313,7 +314,7 @@ function CalendarCell({
                 }}
                 onDragStart={(e) => e.preventDefault()}
                 draggable={false}
-                className="flex h-5 w-5 items-center justify-center rounded bg-white/20 text-white hover:bg-white/30 flex-shrink-0"
+                className="flex h-6 w-6 items-center justify-center rounded bg-white/20 text-white hover:bg-white/30 flex-shrink-0"
                 title={completed ? '标记为未完成' : '标记为完成'}
               >
                 {completed ? <CheckSquare size={16} /> : <Square size={16} className="opacity-80" />}
@@ -354,14 +355,15 @@ function CalendarCell({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      onEventClick?.(event)
+                      const originId = event._originId || event.id
+                      onDeleteEvent?.(originId)
                     }}
                     onDragStart={(e) => e.preventDefault()}
                     draggable={false}
-                    className="flex h-6 w-6 items-center justify-center rounded bg-white/15 text-white hover:bg-white/30 flex-shrink-0"
-                    title="编辑事件"
+                    className="flex h-6 w-6 items-center justify-center flex-shrink-0"
+                    title="删除事件"
                   >
-                    ···
+                    <span className="ios-wiggle text-white text-sm font-bold">×</span>
                   </button>
                 )
               )}

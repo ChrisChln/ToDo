@@ -536,6 +536,7 @@ function CalendarView() {
           onEventClick={handleEventClick}
           onToggleComplete={handleToggleComplete}
           onOpenLink={handleOpenLink}
+          onDeleteEvent={handleDeleteEvent}
           onEventDragStart={handleEventDragStart}
           onEventDragOver={handleEventDragOver}
           onEventDragLeave={handleEventDragLeave}
