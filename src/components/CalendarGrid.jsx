@@ -11,6 +11,13 @@ function CalendarGrid({
   onEventClick,
   onToggleComplete,
   onOpenLink,
+  onEventDragStart,
+  onEventDragOver,
+  onEventDragLeave,
+  onEventDrop,
+  onEventDragEnd,
+  draggedEventId,
+  dropIndicator,
   isEditMode,
   today,
 }) {
@@ -137,6 +144,13 @@ function CalendarGrid({
                   onEventClick={onEventClick}
                   onToggleComplete={onToggleComplete}
                   onOpenLink={onOpenLink}
+                  onEventDragStart={onEventDragStart}
+                  onEventDragOver={onEventDragOver}
+                  onEventDragLeave={onEventDragLeave}
+                  onEventDrop={onEventDrop}
+                  onEventDragEnd={onEventDragEnd}
+                  draggedEventId={draggedEventId}
+                  dropIndicator={dropIndicator}
                   isEditMode={isEditMode}
                   showHourLabel={index === centerIndex}
                   hourLabel={`${hour}:00`}

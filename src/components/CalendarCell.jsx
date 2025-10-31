@@ -7,12 +7,21 @@ function CalendarCell({
   onEventClick,
   onToggleComplete,
   onOpenLink,
+  onEventDragStart,
+  onEventDragOver,
+  onEventDragLeave,
+  onEventDrop,
+  onEventDragEnd,
+  draggedEventId,
+  dropIndicator,
   isEditMode,
   showHourLabel = false,
   hourLabel = '',
   isToday = false,
   isFirstColumn = false,
   isRestDay = false,
+  day,
+  hour,
 }) {
   const isDark = useSelector(state => state.theme?.isDark || false)
   const primaryColor = useSelector(state => state.theme?.primaryColor || '#A78BFA')
@@ -173,54 +182,168 @@ function CalendarCell({
       )}
 
       {!isRestDay && (
-        <div className={`${showHourLabel ? 'mt-6' : ''} space-y-1`}>
-        {events.map((event) => {
+        <div 
+          className={`${showHourLabel ? 'mt-6' : ''} space-y-1 relative`}
+          onDragOver={(e) => {
+            // 只允许在同一时间段内拖放
+            if (!isEditMode || !draggedEventId) {
+              e.preventDefault()
+              return
+            }
+            // 检查被拖拽的事件是否在这个时间段内
+            const sourceEvent = events.find(ev => ev.id === draggedEventId)
+            if (sourceEvent) {
+              const sourceStart = new Date(sourceEvent.start)
+              const sourceDay = sourceStart.getDate()
+              const sourceMonth = sourceStart.getMonth()
+              const sourceYear = sourceStart.getFullYear()
+              const sourceHour = sourceStart.getHours()
+              
+              const cellDay = day.getDate()
+              const cellMonth = day.getMonth()
+              const cellYear = day.getFullYear()
+              const cellHour = hour
+              
+              // 只有完全匹配才允许
+              if (
+                sourceYear === cellYear && 
+                sourceMonth === cellMonth && 
+                sourceDay === cellDay && 
+                sourceHour === cellHour
+              ) {
+                // 允许拖拽，不阻止默认行为，让事件元素处理
+                e.preventDefault()
+              } else {
+                // 不在同一时间段，阻止拖拽
+                e.preventDefault()
+              }
+            } else {
+              e.preventDefault()
+            }
+          }}
+        >
+        {events.map((event, eventIndex) => {
           const completed = !!event.completed
           const baseColor = normalizeHex(event.color || primaryColor)
-          const backgroundColor = completed ? adjustColor(baseColor, -60) : baseColor
-          const borderColor = adjustColor(baseColor, -80)
+          // 完成状态：使用灰色背景和边框
+          const backgroundColor = completed 
+            ? (isDark ? '#6B7280' : '#9CA3AF')
+            : baseColor
+          const borderColor = completed
+            ? (isDark ? '#4B5563' : '#6B7280')
+            : adjustColor(baseColor, -80)
+          const isDragged = draggedEventId === event.id
+          const showIndicatorBefore = dropIndicator?.eventId === event.id && dropIndicator?.position === 'before'
+          const showIndicatorAfter = dropIndicator?.eventId === event.id && dropIndicator?.position === 'after'
 
           return (
-            <div
-              key={event.id}
-              className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-xs shadow-sm transition-all ${
-                completed ? 'ring-1 ring-black/10' : ''
-              } ${isEditMode ? 'ios-wiggle' : ''}`}
-              style={{ backgroundColor, borderColor }}
-              onClick={handleEventContainerClick}
-            >
+            <div key={event.id}>
+              {showIndicatorBefore && (
+                <div 
+                  className="mb-1 h-0.5 rounded-full transition-all"
+                  style={{ backgroundColor: primaryColor }}
+                />
+              )}
+              <div
+                draggable={isEditMode}
+                onDragStart={(e) => {
+                  // 如果点击的是按钮，不启动拖拽
+                  if (e.target.closest('button')) {
+                    e.preventDefault()
+                    return
+                  }
+                  if (onEventDragStart) {
+                    onEventDragStart(e, event.id)
+                  }
+                }}
+                onDragOver={(e) => {
+                  // 只允许在同一时间段内拖拽
+                  if (!draggedEventId || draggedEventId === event.id) {
+                    e.preventDefault()
+                    return
+                  }
+                  
+                  // 检查被拖拽的事件是否在这个时间段内
+                  // 由于CalendarCell中的events已经过滤过，这里主要是传递给父组件检查
+                  // 父组件会做更详细的检查
+                  if (onEventDragOver) {
+                    onEventDragOver(e, event.id, day, hour)
+                  } else {
+                    e.preventDefault()
+                  }
+                }}
+                onDragLeave={(e) => {
+                  if (onEventDragLeave) {
+                    onEventDragLeave(e, event.id)
+                  }
+                }}
+                onDrop={(e) => {
+                  // 只允许在同一时间段内放下
+                  if (!draggedEventId || draggedEventId === event.id) {
+                    e.preventDefault()
+                    return
+                  }
+                  if (onEventDrop) {
+                    onEventDrop(e, event.id, day, hour)
+                  } else {
+                    e.preventDefault()
+                  }
+                }}
+                onDragEnd={(e) => {
+                  if (onEventDragEnd) {
+                    onEventDragEnd()
+                  }
+                }}
+                className={`flex items-center gap-2 rounded-lg px-2 py-2 text-xs shadow-sm transition-all ${
+                  isEditMode ? 'cursor-move' : ''
+                } ${isDragged ? 'opacity-50' : ''}`}
+                style={{ backgroundColor }}
+                onClick={(e) => {
+                  if (e.target.closest('button')) {
+                    return
+                  }
+                  handleEventContainerClick(e)
+                }}
+              >
               <button
                 type="button"
-                onClick={(eventClick) => {
-                  eventClick.stopPropagation()
+                onClick={(e) => {
+                  e.stopPropagation()
                   onToggleComplete?.(event)
                 }}
-                className="flex h-5 w-5 items-center justify-center rounded bg-white/20 text-white hover:bg-white/30"
+                onDragStart={(e) => e.preventDefault()}
+                draggable={false}
+                className="flex h-5 w-5 items-center justify-center rounded bg-white/20 text-white hover:bg-white/30 flex-shrink-0"
                 title={completed ? '标记为未完成' : '标记为完成'}
               >
                 {completed ? <CheckSquare size={16} /> : <Square size={16} className="opacity-80" />}
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation()
                   if (isEditMode) {
                     onEventClick?.(event)
                   }
                 }}
+                onDragStart={(e) => e.preventDefault()}
+                draggable={false}
                 className={`flex-1 truncate text-left text-white ${
                   isEditMode ? '' : 'pointer-events-none opacity-80'
                 }`}
               >
-                <span className="font-semibold">{event.title}</span>
+                <span className={`font-semibold ${completed ? 'line-through' : ''}`}>{event.title}</span>
               </button>
               {event.link ? (
                 <button
                   type="button"
-                  onClick={(eventClick) => {
-                    eventClick.stopPropagation()
+                  onClick={(e) => {
+                    e.stopPropagation()
                     onOpenLink?.(event)
                   }}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-white/25 text-white hover:bg-white/40"
+                  onDragStart={(e) => e.preventDefault()}
+                  draggable={false}
+                  className="flex h-6 w-6 items-center justify-center rounded bg-white/25 text-white hover:bg-white/40 flex-shrink-0"
                   title="打开链接"
                 >
                   <SquareArrowOutUpRight size={14} />
@@ -229,16 +352,25 @@ function CalendarCell({
                 isEditMode && (
                   <button
                     type="button"
-                    onClick={(eventClick) => {
-                      eventClick.stopPropagation()
+                    onClick={(e) => {
+                      e.stopPropagation()
                       onEventClick?.(event)
                     }}
-                    className="flex h-6 w-6 items-center justify-center rounded bg-white/15 text-white hover:bg-white/30"
+                    onDragStart={(e) => e.preventDefault()}
+                    draggable={false}
+                    className="flex h-6 w-6 items-center justify-center rounded bg-white/15 text-white hover:bg-white/30 flex-shrink-0"
                     title="编辑事件"
                   >
                     ···
                   </button>
                 )
+              )}
+              </div>
+              {showIndicatorAfter && (
+                <div 
+                  className="mt-1 h-0.5 rounded-full transition-all"
+                  style={{ backgroundColor: primaryColor }}
+                />
               )}
             </div>
           )

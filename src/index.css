@@ -48,6 +48,20 @@
     -webkit-backface-visibility: hidden;
   }
 
+  /* 慢速抖动（用于分类） */
+  @keyframes ios-wiggle-slow {
+    0% { transform: rotate(-1deg); }
+    50% { transform: rotate(1deg); }
+    100% { transform: rotate(-1deg); }
+  }
+  .ios-wiggle-slow {
+    animation: ios-wiggle-slow 0.8s ease-in-out infinite;
+    transform-origin: center center;
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
   /* 隐藏滚动条但保持滚动功能 */
   .scrollbar-hide {
     -ms-overflow-style: none;  /* IE and Edge */

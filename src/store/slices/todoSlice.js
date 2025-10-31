@@ -97,6 +97,22 @@ const todoSlice = createSlice({
       );
       state.categories = [...reordered, ...remaining];
     },
+    reorderTodos: (state, action) => {
+      const { categoryId, orderedIds } = action.payload;
+      const category = state.categories.find(cat => cat.id === categoryId);
+      if (!category || !Array.isArray(orderedIds) || orderedIds.length === 0) return;
+      const idToTodo = category.todos.reduce((acc, todo) => {
+        acc[todo.id] = todo;
+        return acc;
+      }, {});
+      const reordered = orderedIds
+        .map(id => idToTodo[id])
+        .filter(Boolean);
+      const remaining = category.todos.filter(
+        todo => !orderedIds.includes(todo.id)
+      );
+      category.todos = [...reordered, ...remaining];
+    },
   },
 });
 
@@ -112,6 +128,7 @@ export const {
   deleteCategory,
   toggleCategoryCollapse,
   reorderCategories,
+  reorderTodos,
 } = todoSlice.actions;
 
 export default todoSlice.reducer;

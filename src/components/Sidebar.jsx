@@ -16,6 +16,7 @@ import {
   deleteCategory,
   toggleCategoryCollapse,
   reorderCategories,
+  reorderTodos,
 } from '../store/slices/todoSlice'
 import TodoModal from './TodoModal'
 import ContentPreviewModal from './ContentPreviewModal'
@@ -88,6 +89,9 @@ function Sidebar() {
   const [previewState, setPreviewState] = useState({ open: false, type: null, value: '', title: '', meta: '' })
   const [draggedCategoryId, setDraggedCategoryId] = useState(null)
   const [dropIndicator, setDropIndicator] = useState(null)
+  const [draggedTodoId, setDraggedTodoId] = useState(null)
+  const [todoDropIndicator, setTodoDropIndicator] = useState(null)
+  const [renamingCategoryId, setRenamingCategoryId] = useState(null)
 
   useEffect(() => {
     setOrderedCategories(storeCategories)
@@ -335,15 +339,122 @@ function Sidebar() {
     setIsEditing(prev => !prev)
     setDraggedCategoryId(null)
     setDropIndicator(null)
+    setDraggedTodoId(null)
+    setTodoDropIndicator(null)
+    setRenamingCategoryId(null)
     setEditingTodo(null)
     setIsModalOpen(false)
+  }
+  
+  const handleCategoryDoubleClick = (categoryId) => {
+    if (isEditing) {
+      setRenamingCategoryId(categoryId)
+    }
+  }
+  
+  const handleCategoryRename = (categoryId, name) => {
+    dispatch(updateCategory({ categoryId, name: name.trim() || '未命名分类', finalizeName: true }))
+    setRenamingCategoryId(null)
+  }
+  
+  // 子列表拖拽功能
+  const handleTodoDragStart = (event, todoId, categoryId) => {
+    if (!isEditing) return
+    event.stopPropagation()
+    setDraggedTodoId({ todoId, categoryId })
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move'
+      event.dataTransfer.setData('text/plain', todoId)
+    }
+  }
+
+  const handleTodoDragOver = (event, targetTodoId, categoryId) => {
+    if (!isEditing) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (!targetTodoId || !draggedTodoId || draggedTodoId.todoId === targetTodoId) return
+    if (draggedTodoId.categoryId !== categoryId) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const offsetY = event.clientY - rect.top
+    
+    // 使用更精确的位置判断，与日历事件类似
+    const relativePosition = offsetY / rect.height
+    const position = relativePosition < 0.3 ? 'before' : (relativePosition > 0.7 ? 'after' : (offsetY < rect.height / 2 ? 'before' : 'after'))
+    
+    setTodoDropIndicator({ todoId: targetTodoId, categoryId, position })
+  }
+
+  const handleTodoDragLeave = (event, targetTodoId) => {
+    if (!isEditing || !todoDropIndicator) return
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      if (todoDropIndicator.todoId === targetTodoId) {
+        setTodoDropIndicator(null)
+      }
+    }
+  }
+
+  const reorderTodosLocally = (categoryId, sourceId, targetId, position) => {
+    const category = orderedCategories.find(cat => cat.id === categoryId)
+    if (!category) return []
+    
+    const todos = [...(category.todos || [])]
+    const sourceIndex = todos.findIndex(todo => todo.id === sourceId)
+    let targetIndex = todos.findIndex(todo => todo.id === targetId)
+    if (sourceIndex === -1 || targetIndex === -1) return todos
+
+    const [moved] = todos.splice(sourceIndex, 1)
+    if (position === 'after') {
+      targetIndex = Math.min(targetIndex, todos.length)
+      todos.splice(targetIndex + (sourceIndex < targetIndex ? 0 : 1), 0, moved)
+    } else {
+      targetIndex = Math.max(0, targetIndex)
+      todos.splice(targetIndex + (sourceIndex < targetIndex ? -1 : 0), 0, moved)
+    }
+    return todos.filter(Boolean)
+  }
+
+  const handleTodoDrop = (event, targetTodoId, categoryId) => {
+    if (!isEditing) return
+    event.preventDefault()
+    event.stopPropagation()
+
+    const sourceId = draggedTodoId?.todoId || event.dataTransfer?.getData('text/plain')
+    if (!sourceId || !targetTodoId || sourceId === targetTodoId) {
+      setDraggedTodoId(null)
+      setTodoDropIndicator(null)
+      return
+    }
+
+    if (!draggedTodoId || draggedTodoId.categoryId !== categoryId) {
+      setDraggedTodoId(null)
+      setTodoDropIndicator(null)
+      return
+    }
+
+    const position = todoDropIndicator?.todoId === targetTodoId ? todoDropIndicator.position : 'after'
+    const reordered = reorderTodosLocally(categoryId, sourceId, targetTodoId, position)
+
+    // 更新本地状态
+    setOrderedCategories(prev => prev.map(cat => 
+      cat.id === categoryId ? { ...cat, todos: reordered } : cat
+    ))
+    
+    dispatch(reorderTodos({ categoryId, orderedIds: reordered.map(todo => todo.id) }))
+    setDraggedTodoId(null)
+    setTodoDropIndicator(null)
+  }
+
+  const handleTodoDragEnd = () => {
+    setDraggedTodoId(null)
+    setTodoDropIndicator(null)
   }
 
   const primaryColor = useSelector(state => state.theme?.primaryColor || '#A78BFA')
 
   return (
-    <aside className={`w-80 border-r transition-colors ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'}`}>
-      <div className="h-full flex flex-col">
+    <aside className={`w-72 flex-shrink-0 border-r transition-colors overflow-hidden ${isDark ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'}`}>
+      <div className="h-full flex flex-col min-w-0">
         {orderedCategories.length > 0 && (
           <>
             <div className="px-4 pt-4 pb-4 flex items-center justify-between">
@@ -352,48 +463,34 @@ function Sidebar() {
               </div>
               <button
                 onClick={toggleEditing}
-                className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg transition-colors ${
-                  isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                }`}
+                className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg transition-colors text-white"
+                style={{ backgroundColor: primaryColor }}
+                onMouseEnter={(e) => {
+                  const hex = primaryColor.replace('#', '')
+                  const r = parseInt(hex.substr(0, 2), 16)
+                  const g = parseInt(hex.substr(2, 2), 16)
+                  const b = parseInt(hex.substr(4, 2), 16)
+                  const darken = (val) => Math.max(0, val - 20)
+                  e.currentTarget.style.backgroundColor = `rgb(${darken(r)}, ${darken(g)}, ${darken(b)})`
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = primaryColor
+                }}
               >
                 <Settings size={16} />
                 {isEditing ? '完成' : '管理'}
               </button>
             </div>
 
-            {isEditing && (
-              <div className="px-4 pb-4">
-            <button
-              onClick={handleAddCategory}
-              className="w-full flex items-center justify-center gap-2 text-sm font-medium px-3 py-2 rounded-lg transition-colors text-white"
-              style={{
-                backgroundColor: isDark ? primaryColor : primaryColor,
-              }}
-              onMouseEnter={(e) => {
-                const hex = primaryColor.replace('#', '')
-                const r = parseInt(hex.substr(0, 2), 16)
-                const g = parseInt(hex.substr(2, 2), 16)
-                const b = parseInt(hex.substr(4, 2), 16)
-                const darken = (val) => Math.max(0, val - 20)
-                e.currentTarget.style.backgroundColor = `rgb(${darken(r)}, ${darken(g)}, ${darken(b)})`
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = primaryColor
-              }}
-            >
-                  <Plus size={16} />
-                  新增分类
-                </button>
-              </div>
-            )}
 
-            <div className="flex-1 overflow-y-auto px-4 pb-4 pt-5">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-5 min-w-0">
               {/* 删除“拖动分类以调整顺序”提示 */}
 
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-0">
 
-              {orderedCategories.map((category) => {
+              {orderedCategories.map((category, categoryIndex) => {
                 const indicator = dropIndicator?.id === category.id ? dropIndicator.position : null
+                const isLastCategory = categoryIndex === orderedCategories.length - 1
                 return (
                   <div key={category.id}>
                     {indicator === 'before' && (
@@ -412,13 +509,13 @@ function Sidebar() {
                       onDrop={(event) => handleCategoryDrop(event, category.id)}
                       onDragLeave={(event) => handleCategoryDragLeave(event, category.id)}
                       onDragEnd={handleCategoryDragEnd}
-                      className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition-colors ${
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm transition-colors min-w-0 ${
                         activeCategory === category.id
                           ? 'font-semibold'
                           : isDark
                             ? 'border-transparent bg-gray-900/40 text-gray-200'
                             : 'border-transparent bg-gray-50 text-gray-700'
-                      } ${isEditing ? 'cursor-move ios-wiggle' : 'cursor-pointer'}`}
+                      } ${isEditing ? 'cursor-move ios-wiggle-slow' : 'cursor-pointer'}`}
                       style={(() => {
                         const hex = primaryColor.replace('#', '')
                         const r = parseInt(hex.substr(0, 2), 16)
@@ -454,28 +551,25 @@ function Sidebar() {
                         {category.collapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                       </button>
 
-                      {isEditing ? (
+                      {isEditing && renamingCategoryId === category.id ? (
                         <input
                           type="text"
-                          value={category.name}
-                          onChange={(event) => handleCategoryNameChange(category.id, event.target.value)}
-                          onBlur={(event) => {
-                            handleCategoryNameBlur(category.id, event.target.value)
-                            event.currentTarget.style.borderColor = ''
+                          autoFocus
+                          defaultValue={category.name}
+                          onBlur={(e) => handleCategoryRename(category.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleCategoryRename(category.id, e.currentTarget.value)
+                            } else if (e.key === 'Escape') {
+                              setRenamingCategoryId(null)
+                            }
                           }}
-                          onKeyDown={handleCategoryNameKeyDown}
-                          className={`flex-1 basis-0 min-w-0 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none ${
-                            isDark
-                              ? 'bg-transparent border-gray-700 text-gray-100'
-                              : 'bg-transparent border-gray-200 text-gray-900'
+                          className={`flex-1 basis-0 min-w-0 bg-transparent outline-none text-sm font-medium ${
+                            isDark ? 'text-gray-200' : 'text-gray-700'
                           }`}
                           style={{
-                            maxWidth: 'calc(100% - 92px)'
+                            maxWidth: 'calc(100% - 80px)'
                           }}
-                          onFocus={(e) => {
-                            e.currentTarget.style.borderColor = primaryColor
-                          }}
-                          placeholder="输入分类名称"
                         />
                       ) : (
                         <button
@@ -484,9 +578,14 @@ function Sidebar() {
                             handleCategorySelect(category.id)
                             dispatch(toggleCategoryCollapse({ categoryId: category.id }))
                           }}
-                          className="flex-1 text-left font-medium hover:underline"
+                          onDoubleClick={() => handleCategoryDoubleClick(category.id)}
+                          className="flex-1 basis-0 min-w-0 text-left font-medium hover:underline"
+                          style={{
+                            maxWidth: 'none'
+                          }}
+                          title={category.name}
                         >
-                          {category.name}
+                          <span className="truncate block">{category.name}</span>
                         </button>
                       )}
 
@@ -494,16 +593,42 @@ function Sidebar() {
                         <button
                           type="button"
                           onClick={() => handleDeleteCategory(category.id)}
-                          className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
+                          className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
                             isDark
-                              ? 'bg-red-500/20 text-red-300 hover:bg-red-500/40'
-                              : 'bg-red-100 text-red-600 hover:bg-red-200'
+                              ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300'
+                              : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'
                           }`}
                         >
-                          删除
+                          ×
                         </button>
                       ) : null}
                     </div>
+
+                    {/* 新增分类按钮 - 只在最后一个分类后面显示，但如果分类展开则显示在子列表区域下方 */}
+                    {isEditing && isLastCategory && category.collapsed && (
+                      <button
+                        onClick={handleAddCategory}
+                        className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg transition-colors my-2 text-sm font-medium"
+                        style={{
+                          backgroundColor: isDark ? primaryColor : primaryColor,
+                          color: 'white',
+                        }}
+                        onMouseEnter={(e) => {
+                          const hex = primaryColor.replace('#', '')
+                          const r = parseInt(hex.substr(0, 2), 16)
+                          const g = parseInt(hex.substr(2, 2), 16)
+                          const b = parseInt(hex.substr(4, 2), 16)
+                          const darken = (val) => Math.max(0, val - 20)
+                          e.currentTarget.style.backgroundColor = `rgb(${darken(r)}, ${darken(g)}, ${darken(b)})`
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = primaryColor
+                        }}
+                      >
+                        <Plus size={16} />
+                        新增分类
+                      </button>
+                    )}
 
                     {!category.collapsed && (
                       <div
@@ -511,7 +636,7 @@ function Sidebar() {
                           isDark ? 'border-gray-800 bg-gray-900/60' : 'border-gray-200 bg-white'
                         }`}
                       >
-                        {category.todos.map((todo) => {
+                        {category.todos.map((todo, todoIndex) => {
                           const Icon = lucideIcons[todo.iconName] || lucideIcons.ListTodo
                           const isComplete = todo.status === 'complete'
                           const contentType = todo.contentType || (todo.link ? 'link' : 'text')
@@ -566,22 +691,65 @@ function Sidebar() {
                                   : []
                               : []
                           const accentStyles = getTodoAccentStyles(todo.accentColor, isDark)
+                          const isDragged = draggedTodoId?.todoId === todo.id
+                          const todoIndicator = todoDropIndicator?.categoryId === category.id && todoDropIndicator?.todoId === todo.id ? todoDropIndicator.position : null
 
                           return (
-                            <div
-                              key={todo.id}
-                              className={`flex items-center gap-3 rounded-lg border px-3 py-1 text-sm transition-all ${
-                                isDark ? 'text-gray-200' : 'text-gray-800'
-                              } ${isEditing ? 'ios-wiggle' : ''}`}
-                              style={accentStyles.container}
-                              onClick={() => {
-                                if (isEditing) {
-                                  openTodoModalForCategory(category.id, { ...todo, categoryId: category.id })
-                                } else {
-                                  handleToggleTodo(category.id, todo.id)
-                                }
-                              }}
-                            >
+                            <div key={todo.id}>
+                              {todoIndicator === 'before' && (
+                                <div 
+                                  className="mb-1 h-0.5 rounded-full transition-all"
+                                  style={{
+                                    backgroundColor: isDark ? `${primaryColor}B3` : primaryColor
+                                  }}
+                                />
+                              )}
+                              <div
+                                draggable={isEditing}
+                                onDragStart={(event) => {
+                                  // 如果点击的是按钮，不启动拖拽
+                                  if (event.target.closest('button')) {
+                                    event.preventDefault()
+                                    return
+                                  }
+                                  handleTodoDragStart(event, todo.id, category.id)
+                                }}
+                                onDragOver={(event) => {
+                                  // 如果点击的是按钮，阻止拖拽
+                                  if (event.target.closest('button')) {
+                                    return
+                                  }
+                                  handleTodoDragOver(event, todo.id, category.id)
+                                }}
+                                onDragLeave={(event) => {
+                                  // 检查是否真正离开了元素
+                                  const relatedTarget = event.relatedTarget
+                                  if (relatedTarget && event.currentTarget.contains(relatedTarget)) {
+                                    return
+                                  }
+                                  handleTodoDragLeave(event, todo.id)
+                                }}
+                                onDrop={(event) => {
+                                  // 如果点击的是按钮，阻止放下
+                                  if (event.target.closest('button')) {
+                                    event.preventDefault()
+                                    return
+                                  }
+                                  handleTodoDrop(event, todo.id, category.id)
+                                }}
+                                onDragEnd={handleTodoDragEnd}
+                                className={`flex items-center gap-3 rounded-lg border px-3 py-1 text-sm transition-all ${
+                                  isDark ? 'text-gray-200' : 'text-gray-800'
+                                } ${isEditing ? 'cursor-move ios-wiggle' : ''} ${isDragged ? 'opacity-50' : ''}`}
+                                style={accentStyles.container}
+                                onClick={() => {
+                                  if (isEditing) {
+                                    openTodoModalForCategory(category.id, { ...todo, categoryId: category.id })
+                                  } else {
+                                    handleToggleTodo(category.id, todo.id)
+                                  }
+                                }}
+                              >
                               <span
                                 className="flex items-center justify-center text-base transition-colors"
                                 style={accentStyles.icon}
@@ -664,12 +832,21 @@ function Sidebar() {
                                     event.stopPropagation()
                                     handleDeleteTodo({ ...todo, categoryId: category.id })
                                   }}
-                                  className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                                    isDark ? 'bg-red-500/20 text-red-300 hover:bg-red-500/40' : 'bg-red-100 text-red-600 hover:bg-red-200'
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
+                                    isDark ? 'text-gray-400 hover:bg-gray-700 hover:text-gray-300' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'
                                   }`}
                                 >
-                                  删除
+                                  ×
                                 </button>
+                              )}
+                              </div>
+                              {todoIndicator === 'after' && (
+                                <div 
+                                  className="mt-1 h-0.5 rounded-full transition-all"
+                                  style={{
+                                    backgroundColor: isDark ? `${primaryColor}B3` : primaryColor
+                                  }}
+                                />
                               )}
                             </div>
                           )
@@ -686,6 +863,31 @@ function Sidebar() {
                           >
                             <Plus size={16} />
                             添加子列表
+                          </button>
+                        )}
+                        {/* 如果这是最后一个分类且展开，在这里显示新增分类按钮 */}
+                        {isEditing && isLastCategory && (
+                          <button
+                            onClick={handleAddCategory}
+                            className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg transition-colors mt-2 text-sm font-medium"
+                            style={{
+                              backgroundColor: isDark ? primaryColor : primaryColor,
+                              color: 'white',
+                            }}
+                            onMouseEnter={(e) => {
+                              const hex = primaryColor.replace('#', '')
+                              const r = parseInt(hex.substr(0, 2), 16)
+                              const g = parseInt(hex.substr(2, 2), 16)
+                              const b = parseInt(hex.substr(4, 2), 16)
+                              const darken = (val) => Math.max(0, val - 20)
+                              e.currentTarget.style.backgroundColor = `rgb(${darken(r)}, ${darken(g)}, ${darken(b)})`
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = primaryColor
+                            }}
+                          >
+                            <Plus size={16} />
+                            新增分类
                           </button>
                         )}
                       </div>

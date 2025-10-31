@@ -652,10 +652,26 @@ function HomeView({ onNavigate }) {
                           onDrop={(e) => handleDesktopDrop(e, desk.id)}
                           onDragLeave={handleDesktopDragLeave}
                           onDragEnd={handleDesktopDragEnd}
-                          className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm whitespace-nowrap flex-shrink-0 max-w-[180px] transition-all ${
+                          className={`relative flex items-center rounded-xl border pl-3 py-1.5 text-sm whitespace-nowrap flex-shrink-0 transition-all ${
+                            isEditing && desktops.length > 1 && renamingId === desk.id ? 'pr-9' : 'pr-3'
+                          } ${
                             isEditing && draggedDesktopId === desk.id ? 'opacity-50' : ''
                           } ${isEditing ? 'cursor-move ios-wiggle' : 'cursor-pointer'} ${active ? 'text-white' : (isDark ? 'text-gray-200' : 'text-gray-700')}`}
                           style={active ? { backgroundColor: primaryColor, borderColor: primaryColor } : { borderColor: isDark ? '#374151' : '#E5E7EB' }}
+                          onMouseEnter={(e) => {
+                            if (!active && !isEditing) {
+                              const hex = primaryColor.replace('#', '')
+                              const r = parseInt(hex.substr(0, 2), 16)
+                              const g = parseInt(hex.substr(2, 2), 16)
+                              const b = parseInt(hex.substr(4, 2), 16)
+                              e.currentTarget.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${isDark ? 0.15 : 0.1})`
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!active && !isEditing) {
+                              e.currentTarget.style.backgroundColor = ''
+                            }
+                          }}
                           onClick={(e) => {
                             if (!isEditing) {
                               e.stopPropagation()
@@ -674,14 +690,13 @@ function HomeView({ onNavigate }) {
                           ) : (
                             <span className="max-w-[140px] truncate" onDoubleClick={() => isEditing && setRenamingId(desk.id)} title={desk.name}>{desk.name}</span>
                           )}
-                          {isEditing && desktops.length > 1 && (
+                          {isEditing && desktops.length > 1 && renamingId === desk.id && (
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); handleDeleteDesktop(desk.id) }}
-                              className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                              className={`absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold z-10 ${
                                 active ? 'text-white hover:bg-white/20' : (isDark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-200')
                               }`}
-                              title="删除桌面"
                             >
                               ×
                             </button>

@@ -167,37 +167,7 @@ function GoogleLoginButton() {
                   />
                 </div>
               )}
-
-              {/* 分隔线 */}
-              <div className="relative py-2">
-                <div className={`absolute inset-0 flex items-center ${
-                  isDark ? 'border-gray-600' : 'border-gray-200'
-                }`}>
-                  <div className={`w-full border-t ${
-                    isDark ? 'border-gray-600' : 'border-gray-300'
-                  }`}></div>
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className={`px-2 ${
-                    isDark ? 'text-gray-400 bg-gray-800' : 'text-gray-500 bg-white'
-                  }`}>
-                    或
-                  </span>
-                </div>
-              </div>
-
             </div>
-
-            <button
-              onClick={() => setShowLogin(false)}
-              className={`mt-4 w-full px-4 py-2 rounded-lg font-medium transition-colors ${
-                isDark
-                  ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-              }`}
-            >
-              取消
-            </button>
           </div>
         </div>
       )}
