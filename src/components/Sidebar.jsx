@@ -347,8 +347,8 @@ function Sidebar() {
         {orderedCategories.length > 0 && (
           <>
             <div className="px-4 pt-4 pb-4 flex items-center justify-between">
-              <div>
-                <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>我的列表</h3>
+              <div className="flex items-center">
+                <img src="/Logo.png" alt="ToDo" className="h-12 w-auto" />
               </div>
               <button
                 onClick={toggleEditing}

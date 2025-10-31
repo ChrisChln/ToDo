@@ -178,6 +178,7 @@ function HomeView({ onNavigate }) {
 
   const handleDesktopDragStart = (event, desktopId) => {
     if (!isEditing) return
+    event.stopPropagation()
     setDraggedDesktopId(desktopId)
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move'
@@ -268,6 +269,11 @@ function HomeView({ onNavigate }) {
   useEffect(() => {
     updateDesktopScrollState()
   }, [desktops, updateDesktopScrollState])
+
+  // 当进入/退出管理模式时，更新滚动状态
+  useEffect(() => {
+    updateDesktopScrollState()
+  }, [isEditing, updateDesktopScrollState])
 
   useEffect(() => {
     const handleResize = () => updateDesktopScrollState()
@@ -605,7 +611,10 @@ function HomeView({ onNavigate }) {
             <div className="flex items-center gap-3 w-full max-w-[920px]">
               <button
                 type="button"
-                onClick={() => scrollDesktops('left')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  scrollDesktops('left')
+                }}
                 disabled={!desktopScrollState.canScrollLeft}
                 className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
                   desktopScrollState.canScrollLeft
@@ -643,11 +652,16 @@ function HomeView({ onNavigate }) {
                           onDrop={(e) => handleDesktopDrop(e, desk.id)}
                           onDragLeave={handleDesktopDragLeave}
                           onDragEnd={handleDesktopDragEnd}
-                          className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm whitespace-nowrap cursor-pointer flex-shrink-0 max-w-[180px] transition-all ${
+                          className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm whitespace-nowrap flex-shrink-0 max-w-[180px] transition-all ${
                             isEditing && draggedDesktopId === desk.id ? 'opacity-50' : ''
-                          } ${isEditing ? 'cursor-move ios-wiggle' : ''} ${active ? 'text-white' : (isDark ? 'text-gray-200' : 'text-gray-700')}`}
+                          } ${isEditing ? 'cursor-move ios-wiggle' : 'cursor-pointer'} ${active ? 'text-white' : (isDark ? 'text-gray-200' : 'text-gray-700')}`}
                           style={active ? { backgroundColor: primaryColor, borderColor: primaryColor } : { borderColor: isDark ? '#374151' : '#E5E7EB' }}
-                          onClick={() => !isEditing && handleSwitchDesktop(desk.id)}
+                          onClick={(e) => {
+                            if (!isEditing) {
+                              e.stopPropagation()
+                              handleSwitchDesktop(desk.id)
+                            }
+                          }}
                         >
                           {isEditing && renamingId === desk.id ? (
                             <input
@@ -701,7 +715,10 @@ function HomeView({ onNavigate }) {
 
               <button
                 type="button"
-                onClick={() => scrollDesktops('right')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  scrollDesktops('right')
+                }}
                 disabled={!desktopScrollState.canScrollRight}
                 className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
                   desktopScrollState.canScrollRight

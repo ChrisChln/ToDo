@@ -37,10 +37,13 @@ function ToolsView() {
   const exportLocalData = () => {
     try {
       const all = {}
+      // 匹配主要数据键（带或不带用户ID后缀）
       const allow = /^(todos|calendar|theme|share|home|restDays)(_.+)?$/
+      // 匹配桌面相关数据键
+      const desktopKeys = /^(home_desktops|home_activeDesktop|home_desktop_.+)$/
       for (let i = 0; i < localStorage.length; i += 1) {
         const key = localStorage.key(i)
-        if (allow.test(key)) {
+        if (allow.test(key) || desktopKeys.test(key)) {
           all[key] = localStorage.getItem(key)
         }
       }
@@ -54,6 +57,19 @@ function ToolsView() {
         if (v1 && !(k1 in all)) all[k1] = v1
         if (v2 && !(k2 in all)) all[k2] = v2
       })
+      // 显式补充桌面相关键
+      const desktopExplicitKeys = ['home_desktops', 'home_activeDesktop']
+      desktopExplicitKeys.forEach((key) => {
+        const value = localStorage.getItem(key)
+        if (value && !(key in all)) all[key] = value
+      })
+      // 补充所有桌面图标键
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('home_desktop_')) {
+          all[key] = localStorage.getItem(key)
+        }
+      }
       const blob = new Blob([JSON.stringify(all, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -75,14 +91,23 @@ function ToolsView() {
       const data = JSON.parse(text)
       let restored = 0
       const allow = /^(todos|calendar|theme|share|home|restDays)(?:_(.+))?$/
+      const desktopKeys = /^(home_desktops|home_activeDesktop|home_desktop_.+)$/
       Object.keys(data).forEach((k) => {
         if (typeof data[k] === 'string') {
+          // 处理主要数据键
           const match = k.match(allow)
-          if (!match) return
-          const base = match[1]
-          const targetKey = currentUserId ? `${base}_${currentUserId}` : base
-          localStorage.setItem(targetKey, data[k])
-          restored += 1
+          if (match) {
+            const base = match[1]
+            const targetKey = currentUserId ? `${base}_${currentUserId}` : base
+            localStorage.setItem(targetKey, data[k])
+            restored += 1
+            return
+          }
+          // 处理桌面相关键（直接恢复，不需要用户ID转换）
+          if (desktopKeys.test(k)) {
+            localStorage.setItem(k, data[k])
+            restored += 1
+          }
         }
       })
       setImportResult({ ok: true, count: restored })
