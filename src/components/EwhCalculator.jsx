@@ -91,6 +91,8 @@ function EwhCalculator() {
   const isDark = useSelector(state => state.theme?.isDark || false)
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
+  const [accountingDuration, setAccountingDuration] = useState('')
+  const [deductLunch, setDeductLunch] = useState(true)
 
   const result = useMemo(() => {
     return formatDuration(startTime, endTime)
@@ -165,8 +167,121 @@ function EwhCalculator() {
                 {result.lunchAdjustedHours.toFixed(2)} 小时（共 {result.lunchAdjustedMinutes} 分钟）
               </p>
             </div>
+            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+              <p className="font-medium mb-1">异常时间（8 小时标准）：</p>
+              {(() => {
+                const standardHours = 8
+                const abnormalHours = result.lunchAdjustedHours - standardHours
+                const abnormalMinutes = Math.round(abnormalHours * 60)
+                const absAbnormalMinutes = Math.abs(abnormalMinutes)
+                
+                if (abnormalHours > 0) {
+                  return (
+                    <p className="text-sm text-orange-600 dark:text-orange-400">
+                      超时 {absAbnormalMinutes} 分钟
+                    </p>
+                  )
+                } else if (abnormalHours < 0) {
+                  return (
+                    <p className="text-sm text-blue-600 dark:text-blue-400">
+                      欠时 {absAbnormalMinutes} 分钟
+                    </p>
+                  )
+                } else {
+                  return (
+                    <p className="text-sm text-green-600 dark:text-green-400">
+                      正常，刚好 8 小时
+                    </p>
+                  )
+                }
+              })()}
+            </div>
           </div>
         )}
+      </div>
+
+      <div className="mt-6 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-5">
+        <h3 className={`text-lg font-semibold mb-4 ${labelClass}`}>回补基础时长计算</h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className={`block text-sm font-medium mb-2 ${labelClass}`} htmlFor="accounting-duration">
+              核算时长（分钟）
+            </label>
+            <input
+              id="accounting-duration"
+              type="number"
+              min="0"
+              value={accountingDuration}
+              onChange={(event) => setAccountingDuration(event.target.value)}
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                isDark
+                  ? 'bg-gray-900 border-gray-700 text-white focus:ring-purple-500'
+                  : 'bg-white border-gray-300 text-gray-900 focus:ring-purple-200'
+              }`}
+              placeholder="请输入核算时长（分钟）"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="deduct-lunch-check"
+              checked={deductLunch}
+              onChange={(event) => setDeductLunch(event.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            />
+            <label htmlFor="deduct-lunch-check" className={`text-sm ${labelClass}`}>
+              扣除午餐（30 分钟）
+            </label>
+          </div>
+
+          <div className="rounded-lg border border-gray-300 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-900/50">
+            {!startTime || !endTime ? (
+              <p className={`text-sm ${helperClass}`}>请先填写完整的工作时间</p>
+            ) : result?.error ? (
+              <p className="text-sm text-red-500">{result.error}</p>
+            ) : !accountingDuration || accountingDuration === '' || Number(accountingDuration) < 0 ? (
+              <p className={`text-sm ${helperClass}`}>请输入有效的核算时长</p>
+            ) : (
+              (() => {
+                const accountingMinutes = Number(accountingDuration)
+                const baseMinutes = deductLunch ? result.lunchAdjustedMinutes : result.diffMinutes
+                const compensationMinutes = baseMinutes - accountingMinutes
+                const absCompensationMinutes = Math.abs(compensationMinutes)
+
+                if (compensationMinutes > 0) {
+                  return (
+                    <div>
+                      <p className={`text-sm font-medium mb-1 ${labelClass}`}>回补基础时长：</p>
+                      <p className="text-sm text-blue-600 dark:text-blue-400">
+                        需回补 {absCompensationMinutes} 分钟
+                      </p>
+                    </div>
+                  )
+                } else if (compensationMinutes < 0) {
+                  return (
+                    <div>
+                      <p className={`text-sm font-medium mb-1 ${labelClass}`}>回补基础时长：</p>
+                      <p className="text-sm text-orange-600 dark:text-orange-400">
+                        超出 {absCompensationMinutes} 分钟
+                      </p>
+                    </div>
+                  )
+                } else {
+                  return (
+                    <div>
+                      <p className={`text-sm font-medium mb-1 ${labelClass}`}>回补基础时长：</p>
+                      <p className="text-sm text-green-600 dark:text-green-400">
+                        无需回补，时长一致
+                      </p>
+                    </div>
+                  )
+                }
+              })()
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

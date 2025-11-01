@@ -21,6 +21,8 @@ function TodoModal({ isOpen, onClose, onSubmit, onDelete, categoryId, categoryNa
   const [textValue, setTextValue] = useState('')
   const [imageItems, setImageItems] = useState([])
   const [barcodeValues, setBarcodeValues] = useState([''])
+  const [barcodeHideText, setBarcodeHideText] = useState([false])
+  const [barcodeDisplayTexts, setBarcodeDisplayTexts] = useState([''])
   const [errors, setErrors] = useState({})
   const [iconZoom, setIconZoom] = useState(1)
   const [showIconLibrary, setShowIconLibrary] = useState(false)
@@ -35,6 +37,8 @@ function TodoModal({ isOpen, onClose, onSubmit, onDelete, categoryId, categoryNa
     setTextValue('')
     setImageItems([])
     setBarcodeValues([''])
+    setBarcodeHideText([false])
+    setBarcodeDisplayTexts([''])
     setErrors({})
   }
 
@@ -71,9 +75,28 @@ function TodoModal({ isOpen, onClose, onSubmit, onDelete, categoryId, categoryNa
           : typeof todo.contentMeta === 'string' && todo.contentMeta
             ? [todo.contentMeta]
             : []
+        const count = metas.length || 1
         setBarcodeValues(metas.length ? metas : [''])
+        
+        // 从 todo 中读取每个条形码的隐藏文字相关设置
+        const hideTextArray = Array.isArray(todo.barcodeHideText) 
+          ? todo.barcodeHideText 
+          : todo.hideBarcodeText 
+            ? Array(count).fill(true)
+            : Array(count).fill(false)
+        const displayTextsArray = Array.isArray(todo.barcodeDisplayTexts)
+          ? todo.barcodeDisplayTexts
+          : todo.barcodeDisplayText
+            ? Array(count).fill(todo.barcodeDisplayText)
+            : Array(count).fill('')
+        
+        // 确保数组长度与条形码数量一致
+        setBarcodeHideText(hideTextArray.slice(0, count).concat(Array(Math.max(0, count - hideTextArray.length)).fill(false)))
+        setBarcodeDisplayTexts(displayTextsArray.slice(0, count).concat(Array(Math.max(0, count - displayTextsArray.length)).fill('')))
       } else {
         setBarcodeValues([''])
+        setBarcodeHideText([false])
+        setBarcodeDisplayTexts([''])
       }
       setErrors({})
     } else {
@@ -140,6 +163,14 @@ function TodoModal({ isOpen, onClose, onSubmit, onDelete, categoryId, categoryNa
       }
       contentValue = batch.codes.map(item => item.dataUrl)
       contentMeta = batch.codes.map(item => item.value)
+      
+      // 确保隐藏文本和显示文本数组长度与条形码数量一致
+      const count = contentMeta.length
+      const hideTextArray = barcodeHideText.slice(0, count).concat(Array(Math.max(0, count - barcodeHideText.length)).fill(false))
+      const displayTextsArray = barcodeDisplayTexts.slice(0, count).concat(Array(Math.max(0, count - barcodeDisplayTexts.length)).fill(''))
+      
+      // 保存每个条形码的隐藏和显示文本配置
+      // （这些会在 payload 中添加）
     }
 
     const payload = {
@@ -154,6 +185,10 @@ function TodoModal({ isOpen, onClose, onSubmit, onDelete, categoryId, categoryNa
       contentType,
       contentValue,
       contentMeta,
+      ...(contentType === 'barcode' ? {
+        barcodeHideText: barcodeHideText.slice(0, contentMeta.length),
+        barcodeDisplayTexts: barcodeDisplayTexts.slice(0, contentMeta.length).map(text => text.trim() || trimmedTitle)
+      } : {}),
     }
 
     onSubmit(payload, isEdit ? 'edit' : 'create')
@@ -232,11 +267,11 @@ function TodoModal({ isOpen, onClose, onSubmit, onDelete, categoryId, categoryNa
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`w-full max-w-lg rounded-custom shadow-custom p-6 transition-colors ${
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-lg rounded-custom shadow-custom transition-colors flex flex-col max-h-[90vh] ${
         isDark ? 'bg-gray-800' : 'bg-white'
       }`}>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
           <div>
             <h3 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               {isEdit ? '编辑子列表' : '添加子列表'}
@@ -260,7 +295,7 @@ function TodoModal({ isOpen, onClose, onSubmit, onDelete, categoryId, categoryNa
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
           <div>
             <label className={`block text-sm font-medium mb-2 ${
               isDark ? 'text-gray-300' : 'text-gray-700'
@@ -438,16 +473,100 @@ function TodoModal({ isOpen, onClose, onSubmit, onDelete, categoryId, categoryNa
           )}
 
           {contentType === 'barcode' && (
-            <BarcodeInputList
-              values={barcodeValues}
-              onChange={(nextValues) => {
-                setBarcodeValues(nextValues)
-                if (errors.barcodeInput) {
-                  setErrors(prev => ({ ...prev, barcodeInput: undefined }))
-                }
-              }}
-              error={errors.barcodeInput}
-            />
+            <div className="space-y-4">
+              <BarcodeInputList
+                values={barcodeValues}
+                onChange={(nextValues) => {
+                  setBarcodeValues(nextValues)
+                  // 同步调整隐藏和显示文本数组的长度
+                  const currentLength = barcodeHideText.length
+                  const newLength = nextValues.length
+                  if (newLength > currentLength) {
+                    setBarcodeHideText([...barcodeHideText, ...Array(newLength - currentLength).fill(false)])
+                    setBarcodeDisplayTexts([...barcodeDisplayTexts, ...Array(newLength - currentLength).fill('')])
+                  } else if (newLength < currentLength) {
+                    setBarcodeHideText(barcodeHideText.slice(0, newLength))
+                    setBarcodeDisplayTexts(barcodeDisplayTexts.slice(0, newLength))
+                  }
+                  if (errors.barcodeInput) {
+                    setErrors(prev => ({ ...prev, barcodeInput: undefined }))
+                  }
+                }}
+                error={errors.barcodeInput}
+              />
+              
+              {/* 为每个已输入的条形码显示独立的隐藏选项 */}
+              {barcodeValues.map((value, index) => {
+                // 只对有内容的条形码显示配置
+                if (!value.trim()) return null
+                
+                const hideText = barcodeHideText[index] ?? false
+                const displayText = barcodeDisplayTexts[index] ?? ''
+                
+                return (
+                  <div key={`barcode-config-${index}`} className="space-y-2 rounded-lg border p-3" style={{
+                    borderColor: isDark ? '#4B5563' : '#E5E7EB',
+                    backgroundColor: isDark ? '#1F2937' : '#F9FAFB'
+                  }}>
+                    <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      条形码 {index + 1}: {value.trim()}
+                    </p>
+                    
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`hide-barcode-text-${index}`}
+                        checked={hideText}
+                        onChange={(event) => {
+                          const next = [...barcodeHideText]
+                          // 确保数组长度足够
+                          while (next.length <= index) {
+                            next.push(false)
+                          }
+                          next[index] = event.target.checked
+                          setBarcodeHideText(next)
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <label htmlFor={`hide-barcode-text-${index}`} className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        隐藏此条形码的文字内容
+                      </label>
+                    </div>
+                    
+                    {hideText && (
+                      <div>
+                        <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`} htmlFor={`barcode-display-text-${index}`}>
+                          显示内容（可选）
+                        </label>
+                        <input
+                          id={`barcode-display-text-${index}`}
+                          type="text"
+                          value={displayText}
+                          onChange={(event) => {
+                            const next = [...barcodeDisplayTexts]
+                            // 确保数组长度足够
+                            while (next.length <= index) {
+                              next.push('')
+                            }
+                            next[index] = event.target.value
+                            setBarcodeDisplayTexts(next)
+                          }}
+                          placeholder={title.trim() || "留空则显示名称"}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                            isDark
+                              ? 'bg-gray-900 border-gray-700 text-white focus:ring-purple-500'
+                              : 'bg-white border-gray-300 text-gray-900 focus:ring-purple-200'
+                          }`}
+                        />
+                        <p className={`mt-1 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          隐藏此条形码下方的原始文字后，将显示此内容。留空则显示子列表名称。
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
 
           <div>

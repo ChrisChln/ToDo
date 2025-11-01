@@ -5,6 +5,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { addEvent, updateEvent, deleteEvent } from '../store/slices/calendarSlice'
 import CalendarGrid from './CalendarGrid'
 import EventModal from './EventModal'
+import LinksModal from './LinksModal'
 
 const dayOffsets = [-3, -2, -1, 0, 1, 2, 3]
 
@@ -92,6 +93,7 @@ function CalendarView() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [draggedEventId, setDraggedEventId] = useState(null)
   const [dropIndicator, setDropIndicator] = useState(null)
+  const [linksModal, setLinksModal] = useState({ open: false, links: [], eventTitle: '' })
 
   const today = useMemo(() => new Date(), [])
   const displayDays = useMemo(() => dayOffsets.map(offset => addDays(today, offset)), [today])
@@ -179,8 +181,33 @@ function CalendarView() {
   }
 
   const handleOpenLink = (event) => {
-    if (event.link) {
-      const target = event.link.startsWith('http') ? event.link : `https://${event.link}`
+    // 获取基础事件（处理重复事件的链接）
+    const originId = event._originId || event.id
+    const baseEvent = events.find(existing => existing.id === originId) || event
+    
+    // 优先检查 links 数组（新格式）
+    if (baseEvent.links && Array.isArray(baseEvent.links) && baseEvent.links.length > 0) {
+      // 如果有多个链接或链接有标题，显示选择弹窗
+      const hasTitles = baseEvent.links.some(link => link.title && link.title.trim())
+      if (baseEvent.links.length > 1 || hasTitles) {
+        setLinksModal({
+          open: true,
+          links: baseEvent.links,
+          eventTitle: baseEvent.title || event.title
+        })
+        return
+      }
+      // 只有一个链接且没有标题，直接打开
+      if (baseEvent.links.length === 1 && baseEvent.links[0].url) {
+        const target = baseEvent.links[0].url.startsWith('http') ? baseEvent.links[0].url : `https://${baseEvent.links[0].url}`
+        window.open(target, '_blank', 'noopener,noreferrer')
+        return
+      }
+    }
+    
+    // 兼容旧格式：单个 link 字符串
+    if (baseEvent.link) {
+      const target = baseEvent.link.startsWith('http') ? baseEvent.link : `https://${baseEvent.link}`
       window.open(target, '_blank', 'noopener,noreferrer')
     }
   }
@@ -548,6 +575,13 @@ function CalendarView() {
           today={today}
         />
       </div>
+
+      <LinksModal
+        isOpen={linksModal.open}
+        onClose={() => setLinksModal({ open: false, links: [], eventTitle: '' })}
+        links={linksModal.links}
+        eventTitle={linksModal.eventTitle}
+      />
 
       {isEventModalOpen && (
         <EventModal

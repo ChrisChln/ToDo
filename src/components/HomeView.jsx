@@ -161,6 +161,8 @@ function HomeView({ onNavigate }) {
     setDesktops(next)
     localStorage.setItem(DESKTOPS_KEY, JSON.stringify(next))
     localStorage.removeItem(desktopIconsKey(id))
+    // 清除改名状态
+    setRenamingId('')
     // 如果删除的是当前桌面，切换到第一个
     if (id === activeDesktopId) {
       const newActive = next[0].id
@@ -683,7 +685,18 @@ function HomeView({ onNavigate }) {
                             <input
                               autoFocus
                               defaultValue={desk.name}
-                              onBlur={(e) => { handleRenameDesktop(desk.id, e.target.value); setRenamingId('') }}
+                              onBlur={(e) => { 
+                                // 使用 setTimeout 延迟检查，确保删除按钮的点击事件先处理
+                                setTimeout(() => {
+                                  const activeElement = document.activeElement
+                                  // 如果焦点在删除按钮上，说明点击了删除，不处理 blur
+                                  if (activeElement && activeElement.getAttribute('data-delete-button') === 'true') {
+                                    return
+                                  }
+                                  handleRenameDesktop(desk.id, e.target.value)
+                                  setRenamingId('') 
+                                }, 100)
+                              }}
                               onKeyDown={(e) => { if (e.key === 'Enter') { handleRenameDesktop(desk.id, e.currentTarget.value); setRenamingId('') } }}
                               className={`bg-transparent outline-none max-w-[140px] ${active ? 'text-white' : (isDark ? 'text-gray-200' : 'text-gray-700')}`}
                             />
@@ -693,8 +706,15 @@ function HomeView({ onNavigate }) {
                           {isEditing && desktops.length > 1 && renamingId === desk.id && (
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); handleDeleteDesktop(desk.id) }}
-                              className={`absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold z-10 ${
+                              data-delete-button="true"
+                              draggable={false}
+                              onMouseDown={(e) => {
+                                e.stopPropagation()
+                                e.preventDefault()
+                                // 使用 onMouseDown 立即触发删除，避免 blur 事件干扰
+                                handleDeleteDesktop(desk.id)
+                              }}
+                              className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold z-50 transition-colors pointer-events-auto ${
                                 active ? 'text-white hover:bg-white/20' : (isDark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-200')
                               }`}
                             >
@@ -821,7 +841,7 @@ function HomeView({ onNavigate }) {
                         <IconComponent size={32} className="text-white" />
                       )}
                     </div>
-                    <p className={`mt-3 w-full px-2 text-sm font-medium leading-snug break-words ${
+                    <p className={`mt-3 w-full px-2 font-medium text-adaptive ${
                       isDark ? 'text-gray-100' : 'text-gray-800'
                     }`}>
                       {icon.title}

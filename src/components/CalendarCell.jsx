@@ -1,5 +1,5 @@
 import { useSelector } from 'react-redux'
-import { CheckSquare, Square, SquareArrowOutUpRight } from 'lucide-react'
+import { CheckSquare, Square } from 'lucide-react'
 
 function CalendarCell({
   events,
@@ -296,12 +296,29 @@ function CalendarCell({
                   }
                 }}
                 className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs shadow-sm transition-all min-h-[32px] ${
-                  isEditMode ? 'cursor-move ios-wiggle' : ''
+                  isEditMode ? 'cursor-move ios-wiggle' : ((event.link || (event.links && Array.isArray(event.links) && event.links.length > 0)) ? 'cursor-pointer' : '')
                 } ${isDragged ? 'opacity-50' : ''}`}
                 style={{ backgroundColor }}
                 onClick={(e) => {
-                  if (e.target.closest('button')) {
+                  // 如果点击的是勾选框按钮，不处理
+                  const checkboxButton = e.currentTarget.querySelector('button[title*="标记"]')
+                  if (checkboxButton && (checkboxButton === e.target || checkboxButton.contains(e.target))) {
                     return
+                  }
+                  // 如果点击的是删除按钮，不处理（删除按钮会自己处理）
+                  const deleteButton = e.currentTarget.querySelector('button[title="删除事件"]')
+                  if (deleteButton && (deleteButton === e.target || deleteButton.contains(e.target))) {
+                    return
+                  }
+                  // 编辑模式下，点击事件格打开编辑
+                  if (isEditMode) {
+                    onEventClick?.(event)
+                  } else {
+                    // 非编辑模式下，检查是否有链接（兼容旧格式 link 和新格式 links）
+                    const hasLink = event.link || (event.links && Array.isArray(event.links) && event.links.length > 0)
+                    if (hasLink) {
+                      onOpenLink?.(event)
+                    }
                   }
                   handleEventContainerClick(e)
                 }}
@@ -319,53 +336,24 @@ function CalendarCell({
               >
                 {completed ? <CheckSquare size={16} /> : <Square size={16} className="opacity-80" />}
               </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (isEditMode) {
-                    onEventClick?.(event)
-                  }
-                }}
-                onDragStart={(e) => e.preventDefault()}
-                draggable={false}
-                className={`flex-1 truncate text-left text-white ${
-                  isEditMode ? '' : 'pointer-events-none opacity-80'
-                }`}
-              >
+              <div className="flex-1 truncate text-left text-white">
                 <span className={`font-semibold ${completed ? 'line-through' : ''}`}>{event.title}</span>
-              </button>
-              {event.link ? (
+              </div>
+              {isEditMode && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    onOpenLink?.(event)
+                    const originId = event._originId || event.id
+                    onDeleteEvent?.(originId)
                   }}
                   onDragStart={(e) => e.preventDefault()}
                   draggable={false}
-                  className="flex h-6 w-6 items-center justify-center rounded bg-white/25 text-white hover:bg-white/40 flex-shrink-0"
-                  title="打开链接"
+                  className="flex h-6 w-6 items-center justify-center flex-shrink-0"
+                  title="删除事件"
                 >
-                  <SquareArrowOutUpRight size={14} />
+                  <span className="ios-wiggle text-white text-sm font-bold">×</span>
                 </button>
-              ) : (
-                isEditMode && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      const originId = event._originId || event.id
-                      onDeleteEvent?.(originId)
-                    }}
-                    onDragStart={(e) => e.preventDefault()}
-                    draggable={false}
-                    className="flex h-6 w-6 items-center justify-center flex-shrink-0"
-                    title="删除事件"
-                  >
-                    <span className="ios-wiggle text-white text-sm font-bold">×</span>
-                  </button>
-                )
               )}
               </div>
               {showIndicatorAfter && (

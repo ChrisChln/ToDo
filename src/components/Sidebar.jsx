@@ -4,6 +4,11 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
+  Link,
+  QrCode,
+  Image as ImageIcon,
+  FileText,
+  Wrench,
 } from 'lucide-react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -86,7 +91,7 @@ function Sidebar() {
   const [activeCategory, setActiveCategory] = useState(storeCategories[0]?.id || null)
   const [modalCategoryId, setModalCategoryId] = useState(storeCategories[0]?.id || null)
   const [editingTodo, setEditingTodo] = useState(null)
-  const [previewState, setPreviewState] = useState({ open: false, type: null, value: '', title: '', meta: '' })
+  const [previewState, setPreviewState] = useState({ open: false, type: null, value: '', title: '', meta: '', hideBarcodeText: false, barcodeDisplayText: '', barcodeHideText: undefined, barcodeDisplayTexts: undefined })
   const [draggedCategoryId, setDraggedCategoryId] = useState(null)
   const [dropIndicator, setDropIndicator] = useState(null)
   const [draggedTodoId, setDraggedTodoId] = useState(null)
@@ -221,12 +226,17 @@ function Sidebar() {
         value: images,
         title: todoItem.title,
         meta: metas,
+        // 兼容新旧格式
+        hideBarcodeText: todoItem.hideBarcodeText || false,
+        barcodeDisplayText: todoItem.barcodeDisplayText || '',
+        barcodeHideText: Array.isArray(todoItem.barcodeHideText) ? todoItem.barcodeHideText : undefined,
+        barcodeDisplayTexts: Array.isArray(todoItem.barcodeDisplayTexts) ? todoItem.barcodeDisplayTexts : undefined,
       })
     }
   }
 
   const closePreview = () => {
-    setPreviewState({ open: false, type: null, value: '', title: '', meta: '' })
+    setPreviewState({ open: false, type: null, value: '', title: '', meta: '', hideBarcodeText: false, barcodeDisplayText: '', barcodeHideText: undefined, barcodeDisplayTexts: undefined })
   }
 
   const handleAddCategory = () => {
@@ -271,42 +281,76 @@ function Sidebar() {
     }
   }
 
+  const handleCategoryDragEnter = (event, targetId) => {
+    if (!isEditing) return
+    if (!draggedCategoryId || draggedCategoryId === targetId) return
+    // 忽略按钮/输入
+    if (event.target.closest('button') || event.target.closest('input')) return
+    // 进入目标时立即高亮目标，position 记为 over
+    setDropIndicator((prev) => {
+      if (prev?.id !== targetId || prev?.position !== 'over') {
+        return { id: targetId, position: 'over' }
+      }
+      return prev
+    })
+  }
+
   const handleCategoryDragOver = (event, targetId) => {
     if (!isEditing) return
-    event.preventDefault()
+    // 注意：preventDefault 已经在 onDragOver 包装函数中调用
     event.stopPropagation()
-    if (!targetId) return
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+    // 忽略按钮/输入
+    if (event.target.closest('button') || event.target.closest('input')) return
+    if (!draggedCategoryId || draggedCategoryId === targetId) return
 
-    const rect = event.currentTarget.getBoundingClientRect()
-    const offsetY = event.clientY - rect.top
-    const position = offsetY < rect.height / 2 ? 'before' : 'after'
-    setDropIndicator({ id: targetId, position })
+    // 仅用于目标高亮（不再进行 before/after 的复杂判定，专注于互换逻辑）
+    setDropIndicator((prev) => (prev?.id === targetId && prev?.position === 'over') ? prev : { id: targetId, position: 'over' })
   }
 
   const handleCategoryDragLeave = (event, targetId) => {
     if (!isEditing || !dropIndicator) return
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      if (dropIndicator.id === targetId) {
-        setDropIndicator(null)
+    const relatedTarget = event.relatedTarget
+    // 检查是否真正离开了元素（不是移动到子元素）
+    if (relatedTarget) {
+      // 如果移动到同一个分类容器的子元素，不清除指示器
+      if (event.currentTarget.contains(relatedTarget)) {
+        return
       }
+      // 如果移动到其他分类容器，不清除指示器（保留目标高亮）
+      const parentElement = relatedTarget.closest('[draggable="true"]')
+      if (parentElement && parentElement !== event.currentTarget) {
+        // 不清除，让新的 dragEnter 来处理
+        return
+      }
+    }
+    // 只有当指示器指向当前目标且真正离开到外部时才清除
+    if (dropIndicator.id === targetId) {
+      // 延迟清除，给 dragOver 机会重新设置
+      setTimeout(() => {
+        setDropIndicator((prev) => {
+          // 再次检查，确保没有被重新设置
+          if (prev && prev.id === targetId) {
+            return null
+          }
+          return prev
+        })
+      }, 50)
     }
   }
 
-  const reorderCategoriesLocally = (sourceId, targetId, position) => {
+  const reorderCategoriesLocally = (sourceId, targetId) => {
     const current = [...orderedCategories]
     const sourceIndex = current.findIndex(category => category.id === sourceId)
-    let targetIndex = current.findIndex(category => category.id === targetId)
-    if (sourceIndex === -1 || targetIndex === -1) return current
+    const targetIndex = current.findIndex(category => category.id === targetId)
+    if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return current
 
-    const [moved] = current.splice(sourceIndex, 1)
-    if (position === 'after') {
-      targetIndex = Math.min(targetIndex, current.length)
-      current.splice(targetIndex + (sourceIndex < targetIndex ? 0 : 1), 0, moved)
-    } else {
-      targetIndex = Math.max(0, targetIndex)
-      current.splice(targetIndex + (sourceIndex < targetIndex ? -1 : 0), 0, moved)
-    }
-    return current.filter(Boolean)
+    // 直接交换两个分类的位置
+    const newCategories = [...current]
+    const temp = newCategories[sourceIndex]
+    newCategories[sourceIndex] = newCategories[targetIndex]
+    newCategories[targetIndex] = temp
+    return newCategories
   }
 
   const handleCategoryDrop = (event, targetId) => {
@@ -321,18 +365,32 @@ function Sidebar() {
       return
     }
 
-    const position = dropIndicator?.id === targetId ? dropIndicator.position : 'after'
-    const reordered = reorderCategoriesLocally(sourceId, targetId, position)
+    // 直接对调两个分类的位置（与桌面图标互换逻辑一致）
+    const reordered = reorderCategoriesLocally(sourceId, targetId)
+    
+    // 确保重新排序成功
+    if (!reordered || reordered.length !== orderedCategories.length) {
+      setDraggedCategoryId(null)
+      setDropIndicator(null)
+      return
+    }
 
+    // 更新本地状态
     setOrderedCategories(reordered)
+    // 更新 Redux store
     dispatch(reorderCategories({ orderedIds: reordered.map(category => category.id) }))
+    
+    // 清除拖拽状态
     setDraggedCategoryId(null)
     setDropIndicator(null)
   }
 
-  const handleCategoryDragEnd = () => {
-    setDraggedCategoryId(null)
-    setDropIndicator(null)
+  const handleCategoryDragEnd = (event) => {
+    // 延迟清除状态，确保 drop 事件先处理
+    setTimeout(() => {
+      setDraggedCategoryId(null)
+      setDropIndicator(null)
+    }, 0)
   }
 
   const toggleEditing = () => {
@@ -368,10 +426,28 @@ function Sidebar() {
     }
   }
 
+  const handleTodoDragEnter = (event, targetTodoId, categoryId) => {
+    if (!isEditing) return
+    if (!draggedTodoId || draggedTodoId.todoId === targetTodoId) return
+    if (draggedTodoId.categoryId !== categoryId) return
+    // 忽略按钮
+    if (event.target.closest('button')) return
+    // 进入目标时立即高亮目标
+    setTodoDropIndicator((prev) => {
+      if (prev?.todoId !== targetTodoId || prev?.categoryId !== categoryId) {
+        return { todoId: targetTodoId, categoryId, position: 'over' }
+      }
+      return prev
+    })
+  }
+
   const handleTodoDragOver = (event, targetTodoId, categoryId) => {
     if (!isEditing) return
-    event.preventDefault()
+    // 注意：preventDefault 已经在 onDragOver 包装函数中调用
     event.stopPropagation()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+    // 忽略按钮
+    if (event.target.closest('button')) return
     if (!targetTodoId || !draggedTodoId || draggedTodoId.todoId === targetTodoId) return
     if (draggedTodoId.categoryId !== categoryId) return
 
@@ -387,10 +463,32 @@ function Sidebar() {
 
   const handleTodoDragLeave = (event, targetTodoId) => {
     if (!isEditing || !todoDropIndicator) return
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      if (todoDropIndicator.todoId === targetTodoId) {
-        setTodoDropIndicator(null)
+    const relatedTarget = event.relatedTarget
+    // 检查是否真正离开了元素（不是移动到子元素）
+    if (relatedTarget) {
+      // 如果移动到同一个 todo 容器的子元素，不清除指示器
+      if (event.currentTarget.contains(relatedTarget)) {
+        return
       }
+      // 如果移动到其他 todo 容器，不清除指示器（保留目标高亮）
+      const parentElement = relatedTarget.closest('[draggable="true"]')
+      if (parentElement && parentElement !== event.currentTarget) {
+        // 不清除，让新的 dragEnter 来处理
+        return
+      }
+    }
+    // 只有当指示器指向当前目标且真正离开到外部时才清除
+    if (todoDropIndicator.todoId === targetTodoId) {
+      // 延迟清除，给 dragOver 机会重新设置
+      setTimeout(() => {
+        setTodoDropIndicator((prev) => {
+          // 再次检查，确保没有被重新设置
+          if (prev && prev.todoId === targetTodoId) {
+            return null
+          }
+          return prev
+        })
+      }, 50)
     }
   }
 
@@ -493,19 +591,26 @@ function Sidebar() {
                 const isLastCategory = categoryIndex === orderedCategories.length - 1
                 return (
                   <div key={category.id}>
-                    {indicator === 'before' && (
-                      <div 
-                        className="mb-2 h-1 rounded-full transition-all"
-                        style={{
-                          backgroundColor: isDark ? `${primaryColor}B3` : primaryColor
-                        }}
-                      />
-                    )}
-
                     <div
                       draggable={isEditing}
-                      onDragStart={(event) => handleCategoryDragStart(event, category.id)}
-                      onDragOver={(event) => handleCategoryDragOver(event, category.id)}
+                      onDragEnter={(event) => handleCategoryDragEnter(event, category.id)}
+                      onDragStart={(event) => {
+                        // 如果点击的是按钮或输入框，不启动拖拽
+                        if (event.target.closest('button') || event.target.closest('input')) {
+                          event.preventDefault()
+                          return
+                        }
+                        handleCategoryDragStart(event, category.id)
+                      }}
+                      onDragOver={(event) => {
+                        // 必须阻止默认行为，否则 drop 事件不会触发
+                        event.preventDefault()
+                        // 如果拖拽到按钮或输入框上，不设置指示器，但允许 drop
+                        if (event.target.closest('button') || event.target.closest('input')) {
+                          return
+                        }
+                        handleCategoryDragOver(event, category.id)
+                      }}
                       onDrop={(event) => handleCategoryDrop(event, category.id)}
                       onDragLeave={(event) => handleCategoryDragLeave(event, category.id)}
                       onDragEnd={handleCategoryDragEnd}
@@ -515,8 +620,18 @@ function Sidebar() {
                           : isDark
                             ? 'border-transparent bg-gray-900/40 text-gray-200'
                             : 'border-transparent bg-gray-50 text-gray-700'
-                      } ${isEditing ? 'cursor-move ios-wiggle-slow' : 'cursor-pointer'}`}
+                      } ${isEditing ? 'cursor-move ios-wiggle-slow' : 'cursor-pointer'} ${
+                        indicator ? (isDark ? 'border-gray-500 bg-gray-800' : 'border-gray-400 bg-gray-200') : ''
+                      }`}
                       style={(() => {
+                        // 拖拽预览：优先显示灰色框，覆盖默认主题色样式
+                        if (indicator) {
+                          return {
+                            borderColor: isDark ? '#6B7280' : '#9CA3AF',
+                            backgroundColor: isDark ? '#1F2937' : '#E5E7EB',
+                            boxShadow: 'none',
+                          }
+                        }
                         const hex = primaryColor.replace('#', '')
                         const r = parseInt(hex.substr(0, 2), 16)
                         const g = parseInt(hex.substr(2, 2), 16)
@@ -637,9 +752,31 @@ function Sidebar() {
                         }`}
                       >
                         {category.todos.map((todo, todoIndex) => {
-                          const Icon = lucideIcons[todo.iconName] || lucideIcons.ListTodo
-                          const isComplete = todo.status === 'complete'
                           const contentType = todo.contentType || (todo.link ? 'link' : 'text')
+                          // 根据内容类型选择图标
+                          let Icon = lucideIcons[todo.iconName] || lucideIcons.ListTodo
+                          if (!todo.iconName || todo.iconName === 'ListTodo') {
+                            switch (contentType) {
+                              case 'link':
+                                Icon = Link
+                                break
+                              case 'barcode':
+                                Icon = QrCode
+                                break
+                              case 'image':
+                                Icon = ImageIcon
+                                break
+                              case 'text':
+                                Icon = FileText
+                                break
+                              case 'tool':
+                                Icon = Wrench
+                                break
+                              default:
+                                Icon = lucideIcons.ListTodo
+                            }
+                          }
+                          const isComplete = todo.status === 'complete'
                           const linkValue =
                             contentType === 'link'
                               ? (typeof todo.contentValue === 'string' && todo.contentValue
@@ -696,14 +833,6 @@ function Sidebar() {
 
                           return (
                             <div key={todo.id}>
-                              {todoIndicator === 'before' && (
-                                <div 
-                                  className="mb-1 h-0.5 rounded-full transition-all"
-                                  style={{
-                                    backgroundColor: isDark ? `${primaryColor}B3` : primaryColor
-                                  }}
-                                />
-                              )}
                               <div
                                 draggable={isEditing}
                                 onDragStart={(event) => {
@@ -714,8 +843,17 @@ function Sidebar() {
                                   }
                                   handleTodoDragStart(event, todo.id, category.id)
                                 }}
+                                onDragEnter={(event) => {
+                                  // 如果点击的是按钮，不处理
+                                  if (event.target.closest('button')) {
+                                    return
+                                  }
+                                  handleTodoDragEnter(event, todo.id, category.id)
+                                }}
                                 onDragOver={(event) => {
-                                  // 如果点击的是按钮，阻止拖拽
+                                  // 必须阻止默认行为，否则 drop 事件不会触发
+                                  event.preventDefault()
+                                  // 如果点击的是按钮，不设置指示器，但允许 drop
                                   if (event.target.closest('button')) {
                                     return
                                   }
@@ -740,38 +878,75 @@ function Sidebar() {
                                 onDragEnd={handleTodoDragEnd}
                                 className={`flex items-center gap-3 rounded-lg border px-3 py-1 text-sm transition-all ${
                                   isDark ? 'text-gray-200' : 'text-gray-800'
-                                } ${isEditing ? 'cursor-move ios-wiggle' : ''} ${isDragged ? 'opacity-50' : ''}`}
-                                style={accentStyles.container}
-                                onClick={() => {
+                                } ${isEditing ? 'cursor-move ios-wiggle' : (((contentType === 'link' && linkValue) || (contentType === 'barcode' && barcodeValues.length > 0)) ? 'cursor-pointer' : '')} ${isDragged ? 'opacity-50' : ''} ${
+                                  todoIndicator ? (isDark ? 'border-gray-500 bg-gray-800' : 'border-gray-400 bg-gray-200') : ''
+                                }`}
+                                style={(() => {
+                                  // 拖拽预览：优先显示灰色框，覆盖默认样式
+                                  if (todoIndicator) {
+                                    return {
+                                      borderColor: isDark ? '#6B7280' : '#9CA3AF',
+                                      backgroundColor: isDark ? '#1F2937' : '#E5E7EB',
+                                    }
+                                  }
+                                  return accentStyles.container
+                                })()}
+                                onClick={(e) => {
+                                  // 如果点击的是按钮，不处理（由按钮自己处理）
+                                  if (e.target.closest('button')) {
+                                    return
+                                  }
+                                  // 编辑模式下，点击打开编辑
                                   if (isEditing) {
                                     openTodoModalForCategory(category.id, { ...todo, categoryId: category.id })
                                   } else {
-                                    handleToggleTodo(category.id, todo.id)
+                                    // 非编辑模式下，如果有链接，打开链接
+                                    if (contentType === 'link' && linkValue) {
+                                      const target = linkValue.startsWith('http') ? linkValue : `https://${linkValue}`
+                                      window.open(target, '_blank', 'noopener,noreferrer')
+                                    } else if (contentType === 'barcode' && barcodeValues.length > 0) {
+                                      // 如果是条形码，打开预览
+                                      openPreviewForTodo({
+                                        ...todo,
+                                        contentType,
+                                        contentValue: barcodeValues,
+                                        contentMeta: barcodeMetas,
+                                      })
+                                    } else {
+                                      // 否则切换完成状态
+                                      handleToggleTodo(category.id, todo.id)
+                                    }
                                   }
                                 }}
                               >
                               <span
-                                className="flex items-center justify-center text-base transition-colors"
+                                className="flex items-center justify-center text-base transition-colors cursor-pointer"
+                                onClick={(e) => {
+                                  // 图标点击也触发父容器的逻辑
+                                  e.stopPropagation()
+                                  if (isEditing) {
+                                    openTodoModalForCategory(category.id, { ...todo, categoryId: category.id })
+                                  } else {
+                                    if (contentType === 'link' && linkValue) {
+                                      const target = linkValue.startsWith('http') ? linkValue : `https://${linkValue}`
+                                      window.open(target, '_blank', 'noopener,noreferrer')
+                                    } else if (contentType === 'barcode' && barcodeValues.length > 0) {
+                                      openPreviewForTodo({
+                                        ...todo,
+                                        contentType,
+                                        contentValue: barcodeValues,
+                                        contentMeta: barcodeMetas,
+                                      })
+                                    } else {
+                                      handleToggleTodo(category.id, todo.id)
+                                    }
+                                  }
+                                }}
                                 style={accentStyles.icon}
                               >
                                 <Icon size={16} />
                               </span>
-                              <span className="flex-1 truncate">{todo.title}</span>
-
-                              {!isEditing && contentType === 'link' && linkValue && (
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    const target = linkValue.startsWith('http') ? linkValue : `https://${linkValue}`
-                                    window.open(target, '_blank', 'noopener,noreferrer')
-                                  }}
-                                  className="rounded-md px-2 py-1 text-xs font-medium border transition-colors"
-                                  style={accentStyles.action}
-                                >
-                                  打开
-                                </button>
-                              )}
+                              <span className={`flex-1 min-w-0 text-adaptive-sm font-medium ${!isEditing && ((contentType === 'link' && linkValue) || (contentType === 'barcode' && barcodeValues.length > 0)) ? 'cursor-pointer' : ''} ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>{todo.title}</span>
 
                               {!isEditing && contentType === 'text' && textValue && (
                                 <button
@@ -806,24 +981,6 @@ function Sidebar() {
                                 </button>
                               )}
 
-                              {!isEditing && contentType === 'barcode' && barcodeValues.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    openPreviewForTodo({
-                                      ...todo,
-                                      contentType,
-                                      contentValue: barcodeValues,
-                                      contentMeta: barcodeMetas,
-                                    })
-                                  }}
-                                  className="rounded-md px-2 py-1 text-xs font-medium border transition-colors"
-                                  style={accentStyles.action}
-                                >
-                                  条码
-                                </button>
-                              )}
 
                               {isEditing && (
                                 <button
@@ -840,14 +997,6 @@ function Sidebar() {
                                 </button>
                               )}
                               </div>
-                              {todoIndicator === 'after' && (
-                                <div 
-                                  className="mt-1 h-0.5 rounded-full transition-all"
-                                  style={{
-                                    backgroundColor: isDark ? `${primaryColor}B3` : primaryColor
-                                  }}
-                                />
-                              )}
                             </div>
                           )
                         })}
@@ -892,14 +1041,6 @@ function Sidebar() {
                         )}
                       </div>
                     )}
-                    {indicator === 'after' && (
-                      <div 
-                        className="mt-2 h-1 rounded-full transition-all"
-                        style={{
-                          backgroundColor: isDark ? `${primaryColor}B3` : primaryColor
-                        }}
-                      />
-                    )}
                   </div>
             )
           })}
@@ -929,6 +1070,10 @@ function Sidebar() {
         meta={previewState.meta}
         onClose={closePreview}
         isDark={isDark}
+        hideBarcodeText={previewState.hideBarcodeText}
+        barcodeDisplayText={previewState.barcodeDisplayText}
+        barcodeHideText={previewState.barcodeHideText}
+        barcodeDisplayTexts={previewState.barcodeDisplayTexts}
       />
     </aside>
   )

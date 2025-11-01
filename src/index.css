@@ -70,4 +70,176 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Chrome, Safari and Opera */
   }
+
+  /* 文本自适应：允许单词边界换行，不允许单词内部拆分 */
+  .text-adaptive {
+    word-break: break-word; /* 在单词边界换行，不拆分单词 */
+    overflow-wrap: break-word; /* 允许长单词在容器边界换行 */
+    hyphens: none; /* 禁用自动连字符 */
+    font-size: 0.8125rem; /* 13px，比默认的 14px 稍小 */
+    line-height: 1.4;
+    white-space: normal; /* 允许换行 */
+  }
+
+  /* 文本自适应（较小，用于侧边栏） */
+  .text-adaptive-sm {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: none;
+    font-size: 0.75rem; /* 12px */
+    line-height: 1.4;
+    /* 允许显示多行，但不超过容器 */
+    white-space: normal;
+  }
+
+  /* 打印样式 */
+  @media print {
+    /* 隐藏页面上的所有其他内容，只显示打印容器 */
+    body > * {
+      visibility: hidden !important;
+    }
+    
+    .print-container {
+      visibility: visible !important;
+    }
+    
+    .print-container,
+    .print-container * {
+      visibility: visible !important;
+    }
+
+    /* 打印容器样式 */
+    .print-container {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      background: white !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
+      z-index: 9999 !important;
+      overflow: visible !important;
+    }
+
+    /* 打印模态框样式 */
+    .print-content {
+      max-width: 100% !important;
+      width: 100% !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      background: white !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+    }
+
+    /* 隐藏打印时的头部 */
+    .print-header {
+      display: none !important;
+    }
+
+    /* 打印内容区域 */
+    .print-body,
+    .print-body-mode {
+      max-height: none !important;
+      overflow: visible !important;
+      padding: 20px !important;
+      background: white !important;
+      display: block !important;
+    }
+
+    /* 打印网格布局 */
+    .print-grid {
+      display: grid !important;
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 20px !important;
+      page-break-inside: avoid !important;
+      width: 100% !important;
+    }
+
+    /* 打印条形码项目 */
+    .print-barcode-item {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 10px !important;
+      border: 1px solid #ddd !important;
+      border-radius: 4px !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      background: white !important;
+    }
+
+    /* 打印条形码图片容器 */
+    .print-barcode-image-container {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      width: 100% !important;
+      padding: 10px !important;
+      background: white !important;
+    }
+
+    /* 打印条形码图片 */
+    .print-barcode-image {
+      max-width: 100% !important;
+      height: auto !important;
+      width: auto !important;
+      display: block !important;
+    }
+
+    /* 打印条形码文本 */
+    .print-barcode-text {
+      margin-top: 8px !important;
+      font-size: 12px !important;
+      text-align: center !important;
+      color: #000 !important;
+      display: block !important;
+    }
+
+    /* 隐藏不需要打印的元素 */
+    button,
+    .print-header {
+      display: none !important;
+      visibility: hidden !important;
+    }
+    
+    /* 确保所有打印内容可见 - 网格布局 */
+    .print-grid {
+      display: grid !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    
+    /* 确保所有打印内容可见 - 条形码项目 */
+    .print-barcode-item {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    
+    /* 确保所有打印内容可见 - 图片容器 */
+    .print-barcode-image-container {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    
+    /* 确保所有打印内容可见 - 图片 */
+    .print-barcode-image {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    
+    /* 确保所有打印内容可见 - 文本 */
+    .print-barcode-text {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+  }
 }

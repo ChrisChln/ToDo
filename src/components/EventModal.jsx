@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
-import { X, Users } from 'lucide-react'
+import { X, Plus, Trash2 } from 'lucide-react'
 import { useSelector } from 'react-redux'
-import { format } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
 
 function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eventData }) {
   const isDark = useSelector(state => state.theme?.isDark || false)
@@ -15,8 +13,7 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
     return 9
   })
   const [color, setColor] = useState('#A78BFA')
-  const [sharedEmails, setSharedEmails] = useState('')
-  const [link, setLink] = useState('')
+  const [links, setLinks] = useState([{ title: '', url: '' }])
   const [completed, setCompleted] = useState(false)
   const [recurrence, setRecurrence] = useState('once')
 
@@ -31,15 +28,21 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
       setTitle(eventData.title || '')
       setEndHour(new Date(eventData.end).getHours())
       setColor(eventData.color || '#A78BFA')
-      setSharedEmails((eventData.sharedWith || []).join(', '))
-      setLink(eventData.link || '')
+      // 处理旧格式的 link（单个字符串）和新格式的 links（数组）
+      if (eventData.links && Array.isArray(eventData.links) && eventData.links.length > 0) {
+        setLinks(eventData.links)
+      } else if (eventData.link) {
+        // 兼容旧格式：单个 link 字符串
+        setLinks([{ title: '', url: eventData.link }])
+      } else {
+        setLinks([{ title: '', url: '' }])
+      }
       setCompleted(!!eventData.completed)
       setRecurrence(eventData.recurrence || 'once')
     } else {
       setTitle('')
       setColor('#A78BFA')
-      setSharedEmails('')
-      setLink('')
+      setLinks([{ title: '', url: '' }])
       setCompleted(false)
       setRecurrence('once')
     }
@@ -60,16 +63,24 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
     const endDate = new Date(selectedTimeSlot.date)
     endDate.setHours(normalizedEndHour, 0, 0, 0)
 
+    // 过滤掉空的链接
+    const validLinks = links.filter(link => link.url.trim())
+    // 如果只有一个链接且没有标题，保持兼容性（存为 link 字段）
+    // 如果有多个链接或链接有标题，存为 links 数组
     const baseEvent = {
       title: title.trim(),
       start: startDate.toISOString(),
       end: endDate.toISOString(),
       color,
-      link: link.trim(),
       completed,
-      sharedWith: sharedEmails.split(',').map(email => email.trim()).filter(Boolean),
+      sharedWith: [],
       recurrence,
       completedOccurrences: eventData?.completedOccurrences || [],
+      ...(validLinks.length === 1 && !validLinks[0].title.trim()
+        ? { link: validLinks[0].url.trim() }
+        : validLinks.length > 0
+        ? { links: validLinks.map(l => ({ title: l.title.trim(), url: l.url.trim() })) }
+        : {}),
     }
 
     if (eventData?.id) {
@@ -80,8 +91,7 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
     setTitle('')
     setEndHour(endHourOptions[0] ?? Math.min(selectedTimeSlot.time + 1, 22))
     setColor('#A78BFA')
-    setSharedEmails('')
-    setLink('')
+    setLinks([{ title: '', url: '' }])
     setCompleted(false)
     setRecurrence('once')
     onClose()
@@ -99,6 +109,13 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
     { name: '绿色', value: '#10B981' },
     { name: '橙色', value: '#F59E0B' },
     { name: '红色', value: '#EF4444' },
+    { name: '粉色', value: '#EC4899' },
+    { name: '青色', value: '#06B6D4' },
+    { name: '黄色', value: '#EAB308' },
+    { name: '靛蓝', value: '#6366F1' },
+    { name: '玫瑰', value: '#F43F5E' },
+    { name: '翡翠', value: '#14B8A6' },
+    { name: '琥珀', value: '#F97316' },
   ]
   const endHourOptions = Array.from({ length: 15 }, (_, i) => i + 8).filter(
     (hour) => hour > selectedTimeSlot.time
@@ -126,17 +143,6 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
           </button>
         </div>
 
-        {eventData && (
-          <div className="mb-4 flex justify-between items-center rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-            <span>删除后无法恢复。</span>
-            <button
-              onClick={() => onDelete?.(eventData.id)}
-              className="rounded-md bg-red-500 px-3 py-1 text-white hover:bg-red-600"
-            >
-              删除
-            </button>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title */}
@@ -167,28 +173,89 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
           </div>
 
           <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              isDark ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              链接（可选）
-            </label>
-            <input
-              type="text"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-              className={`w-full px-4 py-2 rounded-lg border transition-colors ${
-                isDark
-                  ? 'bg-gray-700 border-gray-600 text-white'
-                  : 'bg-white border-gray-300 text-gray-900'
-              } focus:outline-none`}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = primaryColor
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = ''
-              }}
-              placeholder="https://example.com"
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className={`block text-sm font-medium ${
+                isDark ? 'text-gray-300' : 'text-gray-700'
+              }`}>
+                链接（可选）
+              </label>
+              <button
+                type="button"
+                onClick={() => setLinks([...links, { title: '', url: '' }])}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                  isDark
+                    ? 'text-gray-300 hover:bg-gray-700'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Plus size={14} />
+                添加链接
+              </button>
+            </div>
+            <div className="space-y-2">
+              {links.map((link, index) => (
+                <div key={index} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={link.title}
+                    onChange={(e) => {
+                      const newLinks = [...links]
+                      newLinks[index].title = e.target.value
+                      setLinks(newLinks)
+                    }}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                      isDark
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:outline-none`}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = primaryColor
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = ''
+                    }}
+                    placeholder={links.length > 1 ? "链接标题" : ""}
+                  />
+                  <input
+                    type="text"
+                    value={link.url}
+                    onChange={(e) => {
+                      const newLinks = [...links]
+                      newLinks[index].url = e.target.value
+                      setLinks(newLinks)
+                    }}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                      isDark
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    } focus:outline-none`}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = primaryColor
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = ''
+                    }}
+                    placeholder="https://example.com"
+                  />
+                  {links.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newLinks = links.filter((_, i) => i !== index)
+                        setLinks(newLinks.length > 0 ? newLinks : [{ title: '', url: '' }])
+                      }}
+                      className={`p-2 rounded-lg transition-colors ${
+                        isDark
+                          ? 'hover:bg-gray-700 text-gray-400'
+                          : 'hover:bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div>
@@ -233,16 +300,6 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
             </label>
           </div>
 
-          {/* Time Info */}
-          <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
-            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              <span className="font-medium">日期：</span> {format(selectedTimeSlot.date, 'yyyy年M月d日 (EEE)', { locale: zhCN })}
-            </p>
-            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              <span className="font-medium">时间：</span> {String(selectedTimeSlot.time).padStart(2, '0')}:00 - {String(effectiveEndHour).padStart(2, '0')}:00
-            </p>
-          </div>
-
           {/* End Time */}
           <div>
             <label className={`block text-sm font-medium mb-2 ${
@@ -280,50 +337,63 @@ function EventModal({ isOpen, onClose, onSubmit, onDelete, selectedTimeSlot, eve
             }`}>
               颜色
             </label>
-            <div className="flex gap-2">
-              {colorOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setColor(option.value)}
-                  className="flex-1 h-10 rounded-lg transition-all"
+            <div className="space-y-3">
+              <div className="grid grid-cols-6 gap-2">
+                {colorOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setColor(option.value)}
+                    className="h-10 w-full rounded-lg transition-all"
+                    style={{
+                      backgroundColor: option.value,
+                      ...(color === option.value ? {
+                        boxShadow: `0 0 0 2px ${primaryColor}`
+                      } : {})
+                    }}
+                    title={option.name}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                <label className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                  自定义颜色：
+                </label>
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="h-10 w-20 rounded-lg border cursor-pointer"
                   style={{
-                    backgroundColor: option.value,
-                    ...(color === option.value ? {
-                      boxShadow: `0 0 0 2px ${primaryColor}`
-                    } : {})
+                    borderColor: isDark ? '#4B5563' : '#D1D5DB'
                   }}
                 />
-              ))}
+                <input
+                  type="text"
+                  value={color}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                      setColor(value)
+                    }
+                  }}
+                  className={`flex-1 px-3 py-2 rounded-lg border text-sm ${
+                    isDark
+                      ? 'bg-gray-700 border-gray-600 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } focus:outline-none`}
+                  placeholder="#A78BFA"
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = primaryColor
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = ''
+                  }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Share */}
-          <div>
-            <label className={`block text-sm font-medium mb-2 ${
-              isDark ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              <Users size={16} className="inline mr-1" />
-              共享给（邮箱，多个请用逗号分隔）
-            </label>
-            <input
-              type="text"
-              value={sharedEmails}
-              onChange={(e) => setSharedEmails(e.target.value)}
-              className={`w-full px-4 py-2 rounded-lg border transition-colors ${
-                isDark
-                  ? 'bg-gray-700 border-gray-600 text-white'
-                  : 'bg-white border-gray-300 text-gray-900'
-              } focus:outline-none`}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = primaryColor
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = ''
-              }}
-              placeholder="邮箱1@example.com，邮箱2@example.com"
-            />
-          </div>
 
           <div className="flex gap-3 pt-4">
             <button
